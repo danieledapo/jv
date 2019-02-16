@@ -7,23 +7,31 @@ use termion::event::{Event, Key};
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
+use jv::json::parse_json;
 use jv::view::ascii_line::AsciiLine;
-use jv::view::View;
+use jv::view::{Line, View};
 
 fn main() -> io::Result<()> {
-    let mut f = fs::File::open(env::args().nth(1).unwrap())?;
+    let file_path = env::args().nth(1).unwrap();
+    let mut f = fs::File::open(&file_path)?;
 
-    let mut input = String::new();
-    f.read_to_string(&mut input)?;
+    if file_path.ends_with("json") {
+        run(parse_json(f).unwrap())?;
+    } else {
+        let mut input = String::new();
+        f.read_to_string(&mut input)?;
 
+        run(input.lines().map(|l| AsciiLine::new(l).unwrap()))?;
+    }
+
+    Ok(())
+}
+
+fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
     let stdout = io::stdout().into_raw_mode()?;
     let size = termion::terminal_size()?;
 
-    let mut view = View::new(
-        stdout,
-        size,
-        input.lines().map(|l| AsciiLine::new(l).unwrap()),
-    );
+    let mut view = View::new(stdout, size, lines);
 
     view.clear()?;
     view.display()?;

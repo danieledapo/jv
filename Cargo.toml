@@ -5,4 +5,5 @@ authors = ["Daniele D'Orazio <d.dorazio96@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+serde_json = "1.0"
 termion = "1.5"

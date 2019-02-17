@@ -101,7 +101,7 @@ where
     // Move the cursor one character to the right.
     pub fn move_right(&mut self) -> io::Result<()> {
         if self.frame_start_col + usize::from(self.cursor_col) + 1
-            < self.lines[usize::from(self.cursor_row)].unstyled_chars_len()
+            < self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len()
         {
             self.cursor_col += 1;
         }

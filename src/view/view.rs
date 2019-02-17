@@ -125,7 +125,7 @@ where
 
             self.frame_start_col = self
                 .frame_start_col
-                .saturating_sub(usize::from(self.width / 2));
+                .saturating_sub(usize::from(self.width / 2) + 1);
         } else {
             self.cursor_col -= 1;
         }

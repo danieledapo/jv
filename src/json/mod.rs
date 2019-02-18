@@ -22,8 +22,8 @@ enum JsonToken {
     Null,
     Bool(bool),
     Number(f64),
-    String(String),
-    ObjectKey(String),
+    String(AsciiLine<String>),
+    ObjectKey(AsciiLine<String>),
 }
 
 pub fn parse_json(rdr: impl io::Read) -> Option<Vec<JsonLine>> {
@@ -51,16 +51,12 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
             tokens: vec![JsonToken::Number(n.as_f64()?)],
         }),
         Value::String(mut s) => {
-            if !s.is_ascii() {
-                return None;
-            }
-
             s.insert(0, '"');
             s.push('"');
 
             lines.push(JsonLine {
                 indent,
-                tokens: vec![JsonToken::String(s)],
+                tokens: vec![JsonToken::String(AsciiLine::new(s)?)],
             });
         }
         Value::Array(arr) => {
@@ -93,10 +89,6 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
 
             let obj_len = obj.len();
             for (i, (mut k, v)) in obj.into_iter().enumerate() {
-                if !k.is_ascii() {
-                    return None;
-                }
-
                 let mut children = parse_json_lines(v, indent + 4)?;
 
                 children[0].tokens.insert(0, JsonToken::Colon);
@@ -104,7 +96,9 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
                 k.insert(0, '"');
                 k.push('"');
                 children[0].indent = indent + 4;
-                children[0].tokens.insert(0, JsonToken::ObjectKey(k));
+                children[0]
+                    .tokens
+                    .insert(0, JsonToken::ObjectKey(AsciiLine::new(k)?));
 
                 if i < obj_len - 1 {
                     children.last_mut().unwrap().tokens.push(JsonToken::Comma);
@@ -228,16 +222,12 @@ impl Line for JsonToken {
                 color::Fg(color::LightGreen),
                 AsciiLine { l: &n.to_string() }.render(start_col, width)
             ),
-            JsonToken::String(c) => format!(
-                "{}{}",
-                color::Fg(color::Yellow),
-                AsciiLine { l: &c }.render(start_col, width)
-            ),
-            JsonToken::ObjectKey(c) => format!(
-                "{}{}",
-                color::Fg(color::Cyan),
-                AsciiLine { l: &c }.render(start_col, width)
-            ),
+            JsonToken::String(c) => {
+                format!("{}{}", color::Fg(color::Yellow), c.render(start_col, width))
+            }
+            JsonToken::ObjectKey(c) => {
+                format!("{}{}", color::Fg(color::Cyan), c.render(start_col, width))
+            }
         }
     }
 }

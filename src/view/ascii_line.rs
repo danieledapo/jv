@@ -3,36 +3,42 @@ use crate::view::Line;
 /// Simple ascii line that can be used to create a simple viewer over ascii
 /// text.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AsciiLine<'a> {
-    pub(crate) l: &'a str,
+pub struct AsciiLine<S> {
+    pub(crate) l: S,
 }
 
-impl<'a> AsciiLine<'a> {
-    pub fn new(l: &'a str) -> Option<Self> {
-        if l.is_ascii() {
+impl<'a, S> AsciiLine<S>
+where
+    S: AsRef<str>,
+{
+    pub fn new(l: S) -> Option<Self> {
+        if l.as_ref().is_ascii() {
             Some(AsciiLine { l })
         } else {
             None
         }
     }
 
-    pub fn line(&self) -> &'a str {
-        self.l
+    pub fn line(&self) -> &S {
+        &self.l
     }
 
     pub fn len(&self) -> usize {
-        self.l.len()
+        self.l.as_ref().len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.l.is_empty()
+        self.l.as_ref().is_empty()
     }
 }
 
-impl Line for AsciiLine<'_> {
+impl<S> Line for AsciiLine<S>
+where
+    S: AsRef<str>,
+{
     fn render(&self, start_col: usize, width: usize) -> String {
-        if start_col < self.l.len() {
-            let row = &self.l[start_col..self.l.len().min(start_col + width)];
+        if start_col < self.len() {
+            let row = &self.l.as_ref()[start_col..self.len().min(start_col + width)];
 
             row.to_string()
         } else {
@@ -41,6 +47,15 @@ impl Line for AsciiLine<'_> {
     }
 
     fn unstyled_chars_len(&self) -> usize {
-        self.l.len()
+        self.len()
+    }
+}
+
+impl<S> AsRef<str> for AsciiLine<S>
+where
+    S: AsRef<str>,
+{
+    fn as_ref(&self) -> &str {
+        self.l.as_ref()
     }
 }

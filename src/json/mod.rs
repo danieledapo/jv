@@ -148,19 +148,24 @@ impl Line for JsonLine {
     }
 
     fn render(&self, start_col: usize, width: usize) -> String {
-        // FIXME: this is broken, the proper way of doing this is to skip tokens until start_col
-        // and then take width characters
         let mut l = String::new();
-
         let mut col = 0;
 
         for t in &self.tokens {
+            let c = t.unstyled_chars_len();
+
+            if col + c >= start_col {
+                let s = start_col.saturating_sub(col);
+                let w = start_col + width - col;
+
+                l.push_str(&t.render(s, w));
+            }
+
+            col += c;
+
             if col >= start_col + width {
                 break;
             }
-
-            l.push_str(&t.render(0, start_col + width - col));
-            col += t.unstyled_chars_len();
         }
 
         l

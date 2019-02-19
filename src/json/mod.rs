@@ -8,16 +8,15 @@ use crate::view::Line;
 #[derive(Debug)]
 pub struct JsonLine {
     tokens: Vec<JsonToken>,
-    indent: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct JsonToken {
     tag: JsonTokenTag,
     text: AsciiLine<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum JsonTokenTag {
     ObjectStart,
     ObjectEnd,
@@ -30,6 +29,7 @@ enum JsonTokenTag {
     Number,
     String,
     ObjectKey,
+    Whitespace,
 }
 
 pub fn parse_json(rdr: impl io::Read) -> Option<Vec<JsonLine>> {
@@ -51,17 +51,16 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
         })
     };
 
+    let new_indent_tok = |s| new_tok(Whitespace, (0..s).map(|_| ' ').collect());
+
     match json {
         Value::Bool(b) => lines.push(JsonLine {
-            indent,
             tokens: vec![new_tok(Bool, b.to_string())?],
         }),
         Value::Null => lines.push(JsonLine {
-            indent,
             tokens: vec![new_tok(Null, "null".to_string())?],
         }),
         Value::Number(n) => lines.push(JsonLine {
-            indent,
             tokens: vec![new_tok(Number, n.to_string())?],
         }),
         Value::String(mut s) => {
@@ -69,13 +68,11 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
             s.push('"');
 
             lines.push(JsonLine {
-                indent,
                 tokens: vec![new_tok(String, s)?],
             });
         }
         Value::Array(arr) => {
             lines.push(JsonLine {
-                indent: 0,
                 tokens: vec![new_tok(ArrayStart, '['.to_string())?],
             });
 
@@ -91,17 +88,16 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
                         .push(new_tok(Comma, ','.to_string())?);
                 }
 
+                children[0].tokens.insert(0, new_indent_tok(indent + 4)?);
                 lines.extend(children);
             }
 
             lines.push(JsonLine {
-                indent,
-                tokens: vec![new_tok(ArrayEnd, ']'.to_string())?],
+                tokens: vec![new_indent_tok(indent)?, new_tok(ArrayEnd, ']'.to_string())?],
             });
         }
         Value::Object(obj) => {
             lines.push(JsonLine {
-                indent,
                 tokens: vec![new_tok(ObjectStart, '{'.to_string())?],
             });
 
@@ -109,14 +105,16 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
             for (i, (mut k, v)) in obj.into_iter().enumerate() {
                 let mut children = parse_json_lines(v, indent + 4)?;
 
+                children[0].tokens.insert(0, new_indent_tok(1)?);
                 children[0]
                     .tokens
-                    .insert(0, new_tok(Colon, ": ".to_string())?);
+                    .insert(0, new_tok(Colon, ":".to_string())?);
 
                 k.insert(0, '"');
                 k.push('"');
-                children[0].indent = indent + 4;
                 children[0].tokens.insert(0, new_tok(ObjectKey, k)?);
+
+                children[0].tokens.insert(0, new_indent_tok(indent + 4)?);
 
                 if i < obj_len - 1 {
                     children
@@ -130,8 +128,10 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
             }
 
             lines.push(JsonLine {
-                indent,
-                tokens: vec![new_tok(ObjectEnd, '}'.to_string())?],
+                tokens: vec![
+                    new_indent_tok(indent)?,
+                    new_tok(ObjectEnd, '}'.to_string())?,
+                ],
             });
         }
     };
@@ -141,22 +141,18 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
 
 impl Line for JsonLine {
     fn unstyled_chars_len(&self) -> usize {
-        self.indent
-            + self
-                .tokens
-                .iter()
-                .map(|l| l.unstyled_chars_len())
-                .sum::<usize>()
+        self.tokens
+            .iter()
+            .map(|l| l.unstyled_chars_len())
+            .sum::<usize>()
     }
 
     fn render(&self, start_col: usize, width: usize) -> String {
+        // FIXME: this is broken, the proper way of doing this is to skip tokens until start_col
+        // and then take width characters
         let mut l = String::new();
 
         let mut col = 0;
-        if start_col < self.indent {
-            l.extend((0..self.indent - start_col).map(|_| ' '));
-            col += self.indent - start_col;
-        }
 
         for t in &self.tokens {
             if col >= start_col + width {
@@ -179,6 +175,11 @@ impl Line for JsonToken {
     fn render(&self, start_col: usize, width: usize) -> String {
         // termion colors are different types, that's annoying...
         match self.tag {
+            JsonTokenTag::Whitespace => format!(
+                "{}{}",
+                color::Fg(color::Reset),
+                self.text.render(start_col, width)
+            ),
             JsonTokenTag::ObjectStart => format!(
                 "{}{}",
                 color::Fg(color::White),

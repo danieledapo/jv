@@ -135,11 +135,7 @@ where
             self.cursor_row -= 1;
         }
 
-        self.cursor_col = self.lines[self.frame_start_row + usize::from(self.cursor_row)]
-            .unstyled_chars_len()
-            .saturating_sub(1)
-            .min(usize::from(self.cursor_col)) as u16;
-
+        self.fix_cursor_col_after_vertical_move();
         self.display()
     }
 
@@ -158,12 +154,24 @@ where
                 (self.frame_start_row + 1).min(self.lines.len().saturating_sub(1));
         }
 
-        self.cursor_col = self.lines[self.frame_start_row + usize::from(self.cursor_row)]
-            .unstyled_chars_len()
-            .saturating_sub(1)
-            .min(usize::from(self.cursor_col)) as u16;
-
+        self.fix_cursor_col_after_vertical_move();
         self.display()
+    }
+
+    fn fix_cursor_col_after_vertical_move(&mut self) {
+        let row_len =
+            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+
+        if self.frame_start_col + usize::from(self.cursor_col) >= row_len {
+            if self.frame_start_col < row_len {
+                self.cursor_col = (row_len - self.frame_start_col - 1) as u16;
+            } else {
+                self.frame_start_col = row_len / usize::from(self.width) * usize::from(self.width);
+                self.cursor_col = row_len
+                    .saturating_sub(self.frame_start_col)
+                    .saturating_sub(1) as u16;
+            }
+        }
     }
 
     fn show_cursor(&mut self) -> io::Result<()> {

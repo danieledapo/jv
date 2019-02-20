@@ -36,6 +36,7 @@ where
     frame_start_row: usize,
     frame_start_col: usize,
     num_lines_padding: usize,
+    max_col: usize,
 
     // these are 0-based even though the terminal uses 1-based coordinates
     cursor_row: u16,
@@ -62,6 +63,7 @@ where
             frame_start_col: 0,
             frame_start_row: 0,
             height: size.1,
+            max_col: 0,
             width: size.0,
         }
     }
@@ -122,6 +124,8 @@ where
             self.cursor_col /= 2;
         }
 
+        self.max_col = self.frame_start_col + usize::from(self.cursor_col);
+
         self.display()
     }
 
@@ -140,6 +144,8 @@ where
         } else {
             self.cursor_col -= 1;
         }
+
+        self.max_col = self.frame_start_col + usize::from(self.cursor_col);
 
         self.display()
     }
@@ -179,16 +185,11 @@ where
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 
-        if self.frame_start_col + usize::from(self.cursor_col) >= row_len {
-            if self.frame_start_col < row_len {
-                self.cursor_col = (row_len - self.frame_start_col - 1) as u16;
-            } else {
-                self.frame_start_col = row_len / usize::from(self.width) * usize::from(self.width);
-                self.cursor_col = row_len
-                    .saturating_sub(self.frame_start_col)
-                    .saturating_sub(1) as u16;
-            }
-        }
+        let text_width = usize::from(self.width) - self.num_column_width();
+        let c = self.max_col.min(row_len.saturating_sub(1));
+
+        self.frame_start_col = c / text_width * text_width;
+        self.cursor_col = c.saturating_sub(self.frame_start_col) as u16;
     }
 
     fn show_cursor(&mut self) -> io::Result<()> {

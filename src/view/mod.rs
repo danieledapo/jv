@@ -4,6 +4,7 @@ use std::io;
 use std::io::Write;
 
 use termion::clear;
+use termion::color;
 use termion::cursor;
 use termion::raw::RawTerminal;
 
@@ -34,6 +35,7 @@ where
 
     frame_start_row: usize,
     frame_start_col: usize,
+    num_lines_padding: usize,
 
     // these are 0-based even though the terminal uses 1-based coordinates
     cursor_row: u16,
@@ -48,14 +50,18 @@ where
     /// Create a new `View` to print the given lines over the raw terminal
     /// with the given size.
     pub fn new(term: RawTerminal<W>, size: (u16, u16), lines: impl IntoIterator<Item = L>) -> Self {
+        let lines = lines.into_iter().collect::<Vec<L>>();
+        let num_lines_padding = lines.len().to_string().len();
+
         View {
+            lines,
+            num_lines_padding,
             term,
             cursor_col: 0,
             cursor_row: 0,
             frame_start_col: 0,
             frame_start_row: 0,
             height: size.1,
-            lines: lines.into_iter().collect(),
             width: size.0,
         }
     }
@@ -71,14 +77,21 @@ where
 
         // always redraw all the lines possibly clearing them
         for i in 0..self.height {
-            match self.lines.get(self.frame_start_row + usize::from(i)) {
+            let r = self.frame_start_row + usize::from(i);
+
+            let text_width = usize::from(self.width) - self.num_column_width();
+
+            match self.lines.get(r) {
                 None => write!(self.term, "{}", clear::CurrentLine)?,
                 Some(l) => {
                     write!(
                         self.term,
-                        "{}{}",
+                        "{}{}{:>nlp$} │ {}",
                         clear::CurrentLine,
-                        l.render(self.frame_start_col, usize::from(self.width))
+                        color::Fg(color::Reset),
+                        r,
+                        l.render(self.frame_start_col, text_width),
+                        nlp = self.num_lines_padding
                     )?;
                 }
             }
@@ -96,14 +109,16 @@ where
 
     // Move the cursor one character to the right.
     pub fn move_right(&mut self) -> io::Result<()> {
-        if self.frame_start_col + usize::from(self.cursor_col) + 1
-            < self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len()
-        {
+        let row_len =
+            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+
+        if self.frame_start_col + usize::from(self.cursor_col) + 1 < row_len {
             self.cursor_col += 1;
         }
 
-        if self.cursor_col >= self.width {
-            self.frame_start_col += usize::from(self.width / 2) + 1;
+        let text_width = self.width - self.num_column_width() as u16;
+        if self.cursor_col >= text_width {
+            self.frame_start_col += usize::from(text_width) / 2 + 1;
             self.cursor_col /= 2;
         }
 
@@ -113,13 +128,15 @@ where
     // Move the cursor one character to the left.
     pub fn move_left(&mut self) -> io::Result<()> {
         if self.cursor_col == 0 {
+            let text_width = self.width - self.num_column_width() as u16;
+
             if self.frame_start_col != 0 {
-                self.cursor_col = self.width / 2;
+                self.cursor_col = text_width / 2;
             }
 
             self.frame_start_col = self
                 .frame_start_col
-                .saturating_sub(usize::from(self.width / 2) + 1);
+                .saturating_sub(usize::from(text_width) / 2 + 1);
         } else {
             self.cursor_col -= 1;
         }
@@ -175,13 +192,15 @@ where
     }
 
     fn show_cursor(&mut self) -> io::Result<()> {
-        write!(
-            self.term,
-            "{}",
-            cursor::Goto(self.cursor_col + 1, self.cursor_row + 1)
-        )?;
-        self.term.flush()?;
+        let c = self.cursor_col + 1 + self.num_column_width() as u16;
+        let r = self.cursor_row + 1;
 
-        Ok(())
+        write!(self.term, "{}", cursor::Goto(c, r))?;
+        self.term.flush()
+    }
+
+    fn num_column_width(&self) -> usize {
+        // +3 is because after the line number we show " | "
+        self.num_lines_padding + 3
     }
 }

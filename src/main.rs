@@ -3,7 +3,7 @@ use std::fs;
 use std::io;
 use std::io::Read;
 
-use termion::event::{Event, Key};
+use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
@@ -36,15 +36,15 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
     view.clear()?;
     view.display()?;
 
-    for ev in io::stdin().events() {
+    for ev in io::stdin().keys() {
         match ev? {
-            Event::Key(Key::Char('q')) => break,
-            Event::Key(Key::Right) | Event::Key(Key::Char('l')) => view.move_right()?,
-            Event::Key(Key::Left) | Event::Key(Key::Char('h')) => view.move_left()?,
-            Event::Key(Key::Up) | Event::Key(Key::Char('k')) => view.move_up()?,
-            Event::Key(Key::Down) | Event::Key(Key::Char('j')) => view.move_down()?,
-            Event::Key(Key::Char('0')) => view.move_to_sol()?,
-            Event::Key(Key::Char('$')) => view.move_to_eol()?,
+            Key::Char('q') => break,
+            Key::Right | Key::Char('l') => view.move_right()?,
+            Key::Left | Key::Char('h') => view.move_left()?,
+            Key::Up | Key::Char('k') => view.move_up()?,
+            Key::Down | Key::Char('j') => view.move_down()?,
+            Key::Char('0') => view.move_to_sol()?,
+            Key::Char('$') => view.move_to_eol()?,
             _ => {}
         }
     }

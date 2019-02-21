@@ -181,6 +181,23 @@ where
         self.display()
     }
 
+    /// Move to beginning of current line.
+    pub fn move_to_sol(&mut self) -> io::Result<()> {
+        self.max_col = 0;
+        self.fix_cursor_col_after_vertical_move();
+
+        self.display()
+    }
+
+    /// Move to end of current line.
+    pub fn move_to_eol(&mut self) -> io::Result<()> {
+        self.max_col =
+            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+
+        self.fix_cursor_col_after_vertical_move();
+        self.display()
+    }
+
     fn fix_cursor_col_after_vertical_move(&mut self) {
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();

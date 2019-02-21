@@ -43,6 +43,8 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
             Event::Key(Key::Left) | Event::Key(Key::Char('h')) => view.move_left()?,
             Event::Key(Key::Up) | Event::Key(Key::Char('k')) => view.move_up()?,
             Event::Key(Key::Down) | Event::Key(Key::Char('j')) => view.move_down()?,
+            Event::Key(Key::Char('0')) => view.move_to_sol()?,
+            Event::Key(Key::Char('$')) => view.move_to_eol()?,
             _ => {}
         }
     }

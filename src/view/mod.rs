@@ -198,6 +198,32 @@ where
         self.display()
     }
 
+    /// Move one page up.
+    pub fn page_up(&mut self) -> io::Result<()> {
+        if self.frame_start_row == 0 {
+            self.cursor_row = 0;
+        } else {
+            self.frame_start_row = self
+                .frame_start_row
+                .saturating_sub(usize::from(self.height));
+        }
+
+        self.fix_cursor_col_after_vertical_move();
+        self.display()
+    }
+
+    /// Move one page down.
+    pub fn page_down(&mut self) -> io::Result<()> {
+        self.frame_start_row += usize::from(self.height);
+        if self.frame_start_row + usize::from(self.cursor_row) >= self.lines.len() {
+            self.frame_start_row = self.lines.len() - 1;
+            self.cursor_row = 0;
+        }
+
+        self.fix_cursor_col_after_vertical_move();
+        self.display()
+    }
+
     fn fix_cursor_col_after_vertical_move(&mut self) {
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();

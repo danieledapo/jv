@@ -45,6 +45,8 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
             Key::Down | Key::Char('j') => view.move_down()?,
             Key::Char('0') => view.move_to_sol()?,
             Key::Char('$') => view.move_to_eol()?,
+            Key::PageUp => view.page_up()?,
+            Key::PageDown => view.page_down()?,
             _ => {}
         }
     }

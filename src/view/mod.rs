@@ -70,31 +70,60 @@ where
 
     /// Clear the view.
     pub fn clear(&mut self) -> io::Result<()> {
-        write!(self.term, "{}", clear::All)
+        write!(
+            self.term,
+            "{}{}{}",
+            color::Fg(color::Reset),
+            color::Bg(color::Reset),
+            clear::All
+        )
     }
 
     /// Redraw all the screen.
     pub fn display(&mut self) -> io::Result<()> {
+        let fg = color::Fg(color::AnsiValue::grayscale(4));
+        let bg = color::Bg(color::AnsiValue::grayscale(4));
+        let highlighted_bg = color::Bg(color::AnsiValue::grayscale(6));
+        let num_fg = color::Fg(color::AnsiValue::grayscale(7));
+        let highlighted_num_fg = color::Fg(color::LightCyan);
+
         write!(self.term, "{}{}", cursor::Hide, cursor::Goto(1, 1))?;
+
+        let text_width = usize::from(self.width) - self.num_column_width();
 
         // always redraw all the lines possibly clearing them
         for i in 0..self.height {
             let r = self.frame_start_row + usize::from(i);
 
-            let text_width = usize::from(self.width) - self.num_column_width();
-
             match self.lines.get(r) {
-                None => write!(self.term, "{}", clear::CurrentLine)?,
+                None => write!(self.term, "{}{}", bg, clear::CurrentLine)?,
                 Some(l) => {
-                    write!(
-                        self.term,
-                        "{}{}{:>nlp$} │ {}",
-                        clear::CurrentLine,
-                        color::Fg(color::Reset),
-                        r + 1,
-                        l.render(self.frame_start_col, text_width),
-                        nlp = self.num_lines_padding
-                    )?;
+                    if self.cursor_row == i {
+                        write!(
+                            self.term,
+                            "{}{}{}{:>nlp$}{} │ {}{}",
+                            highlighted_bg,
+                            clear::CurrentLine,
+                            highlighted_num_fg,
+                            r + 1,
+                            fg,
+                            color::Fg(color::Reset),
+                            l.render(self.frame_start_col, text_width),
+                            nlp = self.num_lines_padding,
+                        )?
+                    } else {
+                        write!(
+                            self.term,
+                            "{}{}{}{:>nlp$} │ {}{}",
+                            bg,
+                            clear::CurrentLine,
+                            num_fg,
+                            r + 1,
+                            color::Fg(color::Reset),
+                            l.render(self.frame_start_col, text_width),
+                            nlp = self.num_lines_padding,
+                        )?
+                    }
                 }
             }
 

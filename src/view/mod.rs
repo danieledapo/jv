@@ -91,7 +91,7 @@ where
                         "{}{}{:>nlp$} │ {}",
                         clear::CurrentLine,
                         color::Fg(color::Reset),
-                        r,
+                        r + 1,
                         l.render(self.frame_start_col, text_width),
                         nlp = self.num_lines_padding
                     )?;

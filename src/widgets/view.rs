@@ -6,6 +6,8 @@ use termion::color;
 use termion::cursor;
 use termion::raw::RawTerminal;
 
+use crate::widgets::Renderable;
+
 /// `Line` is a line that can be rendered by a `View`.
 pub trait Line {
     /// Render this line starting from the given column spanning for a given
@@ -21,12 +23,8 @@ pub trait Line {
 }
 
 /// A read-only view over some lines.
-pub struct View<W, L>
-where
-    W: io::Write,
-{
+pub struct View<L> {
     lines: Vec<L>,
-    term: RawTerminal<W>,
 
     width: u16,
     height: u16,
@@ -41,21 +39,19 @@ where
     cursor_col: u16,
 }
 
-impl<W, L> View<W, L>
+impl<L> View<L>
 where
-    W: io::Write,
     L: Line,
 {
     /// Create a new `View` to print the given lines over the raw terminal
     /// with the given size.
-    pub fn new(term: RawTerminal<W>, size: (u16, u16), lines: impl IntoIterator<Item = L>) -> Self {
+    pub fn new(size: (u16, u16), lines: impl IntoIterator<Item = L>) -> Self {
         let lines = lines.into_iter().collect::<Vec<L>>();
         let num_lines_padding = lines.len().to_string().len();
 
         View {
             lines,
             num_lines_padding,
-            term,
             cursor_col: 0,
             cursor_row: 0,
             frame_start_col: 0,
@@ -66,78 +62,8 @@ where
         }
     }
 
-    /// Clear the view.
-    pub fn clear(&mut self) -> io::Result<()> {
-        write!(
-            self.term,
-            "{}{}{}",
-            color::Fg(color::Reset),
-            color::Bg(color::Reset),
-            clear::All
-        )
-    }
-
-    /// Redraw all the screen.
-    pub fn display(&mut self) -> io::Result<()> {
-        let fg = color::Fg(color::AnsiValue::grayscale(4));
-        let bg = color::Bg(color::AnsiValue::grayscale(4));
-        let highlighted_bg = color::Bg(color::AnsiValue::grayscale(6));
-        let num_fg = color::Fg(color::AnsiValue::grayscale(7));
-        let highlighted_num_fg = color::Fg(color::LightCyan);
-
-        write!(self.term, "{}{}", cursor::Hide, cursor::Goto(1, 1))?;
-
-        let text_width = usize::from(self.width) - self.num_column_width();
-
-        // always redraw all the lines possibly clearing them
-        for i in 0..self.height {
-            let r = self.frame_start_row + usize::from(i);
-
-            match self.lines.get(r) {
-                None => write!(self.term, "{}{}", bg, clear::CurrentLine)?,
-                Some(l) => {
-                    if self.cursor_row == i {
-                        write!(
-                            self.term,
-                            "{}{}{}{:>nlp$}{} │ {}{}",
-                            highlighted_bg,
-                            clear::CurrentLine,
-                            highlighted_num_fg,
-                            r + 1,
-                            fg,
-                            color::Fg(color::Reset),
-                            l.render(self.frame_start_col, text_width),
-                            nlp = self.num_lines_padding,
-                        )?
-                    } else {
-                        write!(
-                            self.term,
-                            "{}{}{}{:>nlp$} │ {}{}",
-                            bg,
-                            clear::CurrentLine,
-                            num_fg,
-                            r + 1,
-                            color::Fg(color::Reset),
-                            l.render(self.frame_start_col, text_width),
-                            nlp = self.num_lines_padding,
-                        )?
-                    }
-                }
-            }
-
-            if i < self.height - 1 {
-                write!(self.term, "\n\r")?;
-            }
-        }
-
-        write!(self.term, "{}", cursor::Show)?;
-        self.show_cursor()?;
-
-        Ok(())
-    }
-
     // Move the cursor one character to the right.
-    pub fn move_right(&mut self) -> io::Result<()> {
+    pub fn move_right(&mut self) {
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 
@@ -152,12 +78,10 @@ where
         }
 
         self.max_col = self.frame_start_col + usize::from(self.cursor_col);
-
-        self.display()
     }
 
     // Move the cursor one character to the left.
-    pub fn move_left(&mut self) -> io::Result<()> {
+    pub fn move_left(&mut self) {
         if self.cursor_col == 0 {
             let text_width = self.width - self.num_column_width() as u16;
 
@@ -173,12 +97,10 @@ where
         }
 
         self.max_col = self.frame_start_col + usize::from(self.cursor_col);
-
-        self.display()
     }
 
     // Move the cursor up one row.
-    pub fn move_up(&mut self) -> io::Result<()> {
+    pub fn move_up(&mut self) {
         if self.cursor_row == 0 {
             self.frame_start_row = self.frame_start_row.saturating_sub(1);
         } else {
@@ -186,13 +108,12 @@ where
         }
 
         self.fix_cursor_col_after_vertical_move();
-        self.display()
     }
 
     // Move the cursor down one row.
-    pub fn move_down(&mut self) -> io::Result<()> {
+    pub fn move_down(&mut self) {
         if self.frame_start_row + usize::from(self.cursor_row) + 1 >= self.lines.len() {
-            return Ok(());
+            return;
         }
 
         self.cursor_row =
@@ -205,28 +126,24 @@ where
         }
 
         self.fix_cursor_col_after_vertical_move();
-        self.display()
     }
 
     /// Move to beginning of current line.
-    pub fn move_to_sol(&mut self) -> io::Result<()> {
+    pub fn move_to_sol(&mut self) {
         self.max_col = 0;
         self.fix_cursor_col_after_vertical_move();
-
-        self.display()
     }
 
     /// Move to end of current line.
-    pub fn move_to_eol(&mut self) -> io::Result<()> {
+    pub fn move_to_eol(&mut self) {
         self.max_col =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 
         self.fix_cursor_col_after_vertical_move();
-        self.display()
     }
 
     /// Move one page up.
-    pub fn page_up(&mut self) -> io::Result<()> {
+    pub fn page_up(&mut self) {
         if self.frame_start_row == 0 {
             self.cursor_row = 0;
         } else {
@@ -236,11 +153,10 @@ where
         }
 
         self.fix_cursor_col_after_vertical_move();
-        self.display()
     }
 
     /// Move one page down.
-    pub fn page_down(&mut self) -> io::Result<()> {
+    pub fn page_down(&mut self) {
         self.frame_start_row += usize::from(self.height);
         if self.frame_start_row + usize::from(self.cursor_row) >= self.lines.len() {
             self.frame_start_row = self.lines.len() - 1;
@@ -248,7 +164,6 @@ where
         }
 
         self.fix_cursor_col_after_vertical_move();
-        self.display()
     }
 
     fn fix_cursor_col_after_vertical_move(&mut self) {
@@ -262,16 +177,76 @@ where
         self.cursor_col = c.saturating_sub(self.frame_start_col) as u16;
     }
 
-    fn show_cursor(&mut self) -> io::Result<()> {
-        let c = self.cursor_col + 1 + self.num_column_width() as u16;
-        let r = self.cursor_row + 1;
-
-        write!(self.term, "{}", cursor::Goto(c, r))?;
-        self.term.flush()
-    }
-
     fn num_column_width(&self) -> usize {
         // +3 is because after the line number we show " | "
         self.num_lines_padding + 3
+    }
+}
+
+impl<L> Renderable for View<L>
+where
+    L: Line,
+{
+    fn render(&self, term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
+        let fg = color::Fg(color::AnsiValue::grayscale(4));
+        let bg = color::Bg(color::AnsiValue::grayscale(4));
+        let highlighted_bg = color::Bg(color::AnsiValue::grayscale(6));
+        let num_fg = color::Fg(color::AnsiValue::grayscale(7));
+        let highlighted_num_fg = color::Fg(color::LightCyan);
+
+        write!(term, "{}{}", cursor::Hide, cursor::Goto(1, 1))?;
+
+        let text_width = usize::from(self.width) - self.num_column_width();
+
+        // always redraw all the lines possibly clearing them
+        for i in 0..self.height {
+            let r = self.frame_start_row + usize::from(i);
+
+            match self.lines.get(r) {
+                None => write!(term, "{}{}", bg, clear::CurrentLine)?,
+                Some(l) => {
+                    if self.cursor_row == i {
+                        write!(
+                            term,
+                            "{}{}{}{:>nlp$}{} │ {}{}",
+                            highlighted_bg,
+                            clear::CurrentLine,
+                            highlighted_num_fg,
+                            r + 1,
+                            fg,
+                            color::Fg(color::Reset),
+                            l.render(self.frame_start_col, text_width),
+                            nlp = self.num_lines_padding,
+                        )?
+                    } else {
+                        write!(
+                            term,
+                            "{}{}{}{:>nlp$} │ {}{}",
+                            bg,
+                            clear::CurrentLine,
+                            num_fg,
+                            r + 1,
+                            color::Fg(color::Reset),
+                            l.render(self.frame_start_col, text_width),
+                            nlp = self.num_lines_padding,
+                        )?
+                    }
+                }
+            }
+
+            if i < self.height - 1 {
+                write!(term, "\n\r")?;
+            }
+        }
+
+        write!(term, "{}", cursor::Show)?;
+
+        let c = self.cursor_col + 1 + self.num_column_width() as u16;
+        let r = self.cursor_row + 1;
+
+        write!(term, "{}", cursor::Goto(c, r))?;
+        term.flush()?;
+
+        Ok(())
     }
 }

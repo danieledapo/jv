@@ -240,13 +240,17 @@ where
         }
 
         write!(term, "{}", cursor::Show)?;
+        term.flush()?;
 
+        Ok(())
+    }
+
+    fn focus(&self, term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
         let c = self.cursor_col + 1 + self.num_column_width() as u16;
         let r = self.cursor_row + 1;
 
         write!(term, "{}", cursor::Goto(c, r))?;
-        term.flush()?;
 
-        Ok(())
+        term.flush()
     }
 }

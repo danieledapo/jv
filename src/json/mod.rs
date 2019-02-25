@@ -2,8 +2,8 @@ use std::io;
 
 use termion::color;
 
-use crate::view::ascii_line::AsciiLine;
-use crate::view::Line;
+use crate::widgets::ascii_line::AsciiLine;
+use crate::widgets::view::Line;
 
 #[derive(Debug)]
 pub struct JsonLine {

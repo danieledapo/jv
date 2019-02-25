@@ -1,4 +1,4 @@
-use crate::view::Line;
+use crate::widgets::view::Line;
 
 /// Simple ascii line that can be used to create a simple viewer over ascii
 /// text.

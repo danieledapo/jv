@@ -1,5 +1,3 @@
-pub mod ascii_line;
-
 use std::io;
 use std::io::Write;
 

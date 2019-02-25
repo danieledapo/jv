@@ -8,8 +8,8 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 use jv::json::parse_json;
-use jv::view::ascii_line::AsciiLine;
-use jv::view::{Line, View};
+use jv::widgets::ascii_line::AsciiLine;
+use jv::widgets::view::{Line, View};
 
 fn main() -> io::Result<()> {
     let file_path = env::args().nth(1).unwrap();

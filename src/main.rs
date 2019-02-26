@@ -82,6 +82,7 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
                 Key::Backspace => {
                     status_line.remove();
                     if status_line.is_empty() {
+                        status_line.clear();
                         mode = Mode::Normal;
                     }
                 }

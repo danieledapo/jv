@@ -10,6 +10,8 @@ use termion::cursor;
 use termion::raw::RawTerminal;
 
 pub struct StatusLine {
+    frame_start_col: usize,
+
     // 0-based
     cursor_row: u16,
     cursor_col: u16,
@@ -24,6 +26,7 @@ impl StatusLine {
         StatusLine {
             cursor_row,
             cursor_col: 0,
+            frame_start_col: 0,
             width,
             buffer: AsciiLine { l: String::new() },
         }
@@ -39,17 +42,23 @@ impl StatusLine {
             return;
         }
 
-        self.buffer.l.insert(usize::from(self.cursor_col), c);
-        self.cursor_col += 1;
+        self.buffer
+            .l
+            .insert(self.frame_start_col + usize::from(self.cursor_col), c);
+        self.right();
     }
 
     pub fn remove(&mut self) {
-        self.cursor_col -= 1;
-        self.buffer.l.remove(usize::from(self.cursor_col));
+        self.buffer
+            .l
+            .remove(self.frame_start_col + usize::from(self.cursor_col) - 1);
+        self.left();
     }
 
     pub fn clear(&mut self) {
         self.buffer.l.clear();
+        self.cursor_col = 0;
+        self.frame_start_col = 0;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -57,13 +66,37 @@ impl StatusLine {
     }
 
     pub fn left(&mut self) {
-        // TODO: handle page movement
-        self.cursor_col = self.cursor_col.saturating_sub(1).max(1);
+        if self.cursor_col == 0 {
+            let text_width = self.width;
+
+            if self.frame_start_col != 0 {
+                self.cursor_col = text_width / 2;
+            }
+
+            self.frame_start_col = self
+                .frame_start_col
+                .saturating_sub(usize::from(text_width) / 2 + 1);
+        } else {
+            self.cursor_col -= 1;
+        }
+
+        if self.frame_start_col == 0 && self.cursor_col == 0 {
+            self.cursor_col = 1;
+        }
     }
 
     pub fn right(&mut self) {
-        // TODO: handle page movement
-        self.cursor_col = usize::from(self.cursor_col + 1).min(self.buffer.len()) as u16;
+        let row_len = self.buffer.unstyled_chars_len();
+
+        if self.frame_start_col + usize::from(self.cursor_col) < row_len {
+            self.cursor_col += 1;
+        }
+
+        let text_width = self.width;
+        if self.cursor_col >= text_width {
+            self.frame_start_col += usize::from(text_width) / 2 + 1;
+            self.cursor_col /= 2;
+        }
     }
 }
 
@@ -75,7 +108,8 @@ impl Renderable for StatusLine {
             cursor::Goto(1, self.cursor_row + 1),
             color::Bg(color::AnsiValue::grayscale(4)),
             clear::CurrentLine,
-            self.buffer.render(0, usize::from(self.width)),
+            self.buffer
+                .render(self.frame_start_col, usize::from(self.width)),
         )?;
 
         term.flush()

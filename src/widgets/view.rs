@@ -203,7 +203,15 @@ where
             let r = self.frame_start_row + usize::from(i);
 
             match self.lines.get(r) {
-                None => write!(term, "{}{}", bg, clear::CurrentLine)?,
+                None => write!(
+                    term,
+                    "{}{}{}{:nlp$} │",
+                    bg,
+                    clear::CurrentLine,
+                    num_fg,
+                    '~',
+                    nlp = self.num_lines_padding
+                )?,
                 Some(l) => {
                     if self.cursor_row == i {
                         write!(

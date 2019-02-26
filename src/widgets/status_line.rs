@@ -1,6 +1,6 @@
 use crate::widgets::ascii_line::AsciiLine;
 use crate::widgets::view::Line;
-use crate::widgets::Renderable;
+use crate::widgets::Widget;
 
 use std::io;
 
@@ -100,7 +100,7 @@ impl StatusLine {
     }
 }
 
-impl Renderable for StatusLine {
+impl Widget for StatusLine {
     fn render(&self, term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
         write!(
             term,

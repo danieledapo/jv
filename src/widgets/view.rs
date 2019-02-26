@@ -6,7 +6,7 @@ use termion::color;
 use termion::cursor;
 use termion::raw::RawTerminal;
 
-use crate::widgets::Renderable;
+use crate::widgets::Widget;
 
 /// `Line` is a line that can be rendered by a `View`.
 pub trait Line {
@@ -183,7 +183,7 @@ where
     }
 }
 
-impl<L> Renderable for View<L>
+impl<L> Widget for View<L>
 where
     L: Line,
 {

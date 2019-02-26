@@ -13,7 +13,7 @@ use jv::json::parse_json;
 use jv::widgets::ascii_line::AsciiLine;
 use jv::widgets::status_line::StatusLine;
 use jv::widgets::view::{Line, View};
-use jv::widgets::Renderable;
+use jv::widgets::Widget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {

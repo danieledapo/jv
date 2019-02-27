@@ -76,7 +76,12 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
                     mode = Mode::Normal;
                 }
                 Key::Char('\n') => {
-                    // TODO: something
+                    if let Some((r, c)) = parse_goto(&status_line.text()) {
+                        view.goto(r, c.unwrap_or(0));
+
+                        status_line.clear();
+                        mode = Mode::Normal;
+                    }
                 }
                 Key::Char(c) => status_line.insert(c),
                 Key::Backspace => {
@@ -114,4 +119,18 @@ fn clear(term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
         color::Bg(color::Reset),
         clear::All
     )
+}
+
+fn parse_goto(input: &str) -> Option<(usize, Option<usize>)> {
+    let mut parts = input.split(':').fuse();
+
+    let r = parts.next()?.parse::<usize>().ok()?.saturating_sub(1);
+
+    match parts.next() {
+        None => Some((r, None)),
+        Some(cs) => match cs.parse::<usize>().ok() {
+            Some(c) => Some((r, Some(c.saturating_sub(1)))),
+            None => None,
+        },
+    }
 }

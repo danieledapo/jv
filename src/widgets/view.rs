@@ -194,6 +194,33 @@ where
         self.fix_cursor_col_after_vertical_move();
     }
 
+    /// Goto 0 based row and column.
+    pub fn goto(&mut self, r: usize, c: usize) {
+        if self.lines.is_empty() {
+            return;
+        }
+
+        let r = r.min(self.lines.len().saturating_sub(1));
+        if r < self.frame_start_row || r >= self.frame_start_row + usize::from(self.height) {
+            self.frame_start_row = r.saturating_sub(usize::from(self.height) / 2 - 1);
+        }
+
+        self.cursor_row = r.saturating_sub(self.frame_start_row) as u16;
+
+        let c = c.min(
+            self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+                .unstyled_chars_len()
+                .saturating_sub(1),
+        );
+        if c < self.frame_start_col || c >= self.frame_start_col + usize::from(self.width) {
+            self.frame_start_col = c.saturating_sub(usize::from(self.width) / 2 - 1);
+        }
+
+        self.cursor_col = c.saturating_sub(self.frame_start_col) as u16;
+
+        self.max_col = c;
+    }
+
     fn fix_cursor_col_after_vertical_move(&mut self) {
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();

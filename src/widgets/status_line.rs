@@ -32,6 +32,10 @@ impl StatusLine {
         }
     }
 
+    pub fn text(&self) -> &str {
+        &self.buffer.l[1..]
+    }
+
     pub fn activate(&mut self) {
         self.clear();
         self.insert(':');

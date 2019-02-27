@@ -64,6 +64,10 @@ where
 
     // Move the cursor one character to the right.
     pub fn move_right(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 
@@ -82,6 +86,10 @@ where
 
     // Move the cursor one character to the left.
     pub fn move_left(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         if self.cursor_col == 0 {
             let text_width = self.width - self.num_column_width() as u16;
 
@@ -101,6 +109,10 @@ where
 
     // Move the cursor up one row.
     pub fn move_up(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         if self.cursor_row == 0 {
             self.frame_start_row = self.frame_start_row.saturating_sub(1);
         } else {
@@ -130,12 +142,20 @@ where
 
     /// Move to beginning of current line.
     pub fn move_to_sol(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         self.max_col = 0;
         self.fix_cursor_col_after_vertical_move();
     }
 
     /// Move to end of current line.
     pub fn move_to_eol(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         self.max_col =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 
@@ -144,6 +164,10 @@ where
 
     /// Move one page up.
     pub fn page_up(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         if self.frame_start_row == 0 {
             self.cursor_row = 0;
         } else {
@@ -157,6 +181,10 @@ where
 
     /// Move one page down.
     pub fn page_down(&mut self) {
+        if self.lines.is_empty() {
+            return;
+        }
+
         self.frame_start_row += usize::from(self.height);
         if self.frame_start_row + usize::from(self.cursor_row) >= self.lines.len() {
             self.frame_start_row = self.lines.len() - 1;

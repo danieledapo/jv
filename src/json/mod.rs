@@ -147,6 +147,26 @@ impl Line for JsonLine {
             .sum::<usize>()
     }
 
+    fn len(&self) -> usize {
+        self.tokens.iter().map(|l| l.len()).sum::<usize>()
+    }
+
+    fn char_width(&self, idx: usize) -> u16 {
+        let mut col = 0;
+
+        for t in &self.tokens {
+            let c = t.unstyled_chars_len();
+
+            if idx < col + c {
+                return t.char_width(idx - col);
+            }
+
+            col += c;
+        }
+
+        panic!("bug")
+    }
+
     fn render(&self, start_col: usize, width: usize) -> String {
         let mut l = String::new();
         let mut col = 0;
@@ -174,6 +194,14 @@ impl Line for JsonLine {
 
 impl Line for JsonToken {
     fn unstyled_chars_len(&self) -> usize {
+        self.text.unstyled_chars_len()
+    }
+
+    fn char_width(&self, idx: usize) -> u16 {
+        self.text.char_width(idx)
+    }
+
+    fn len(&self) -> usize {
         self.text.len()
     }
 

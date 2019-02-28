@@ -20,6 +20,12 @@ pub trait Line {
     /// the rendered string. As of now, only ASCII characters are supported
     /// because Unicode is hard to get right.
     fn unstyled_chars_len(&self) -> usize;
+
+    /// The width of the unstyled char at the given index.
+    fn char_width(&self, idx: usize) -> u16;
+
+    ///
+    fn len(&self) -> usize;
 }
 
 /// A read-only view over some lines.
@@ -37,6 +43,10 @@ pub struct View<L> {
     // these are 0-based even though the terminal uses 1-based coordinates
     cursor_row: u16,
     cursor_col: u16,
+
+    // it's the index to the current character in the current line, it would be
+    // frame_start_col + cursor_col if tabs didn't exist :rage:
+    col_char_ix: usize,
 }
 
 impl<L> View<L>
@@ -54,6 +64,7 @@ where
             num_lines_padding,
             cursor_col: 0,
             cursor_row: 0,
+            col_char_ix: 0,
             frame_start_col: 0,
             frame_start_row: 0,
             height: size.1,
@@ -68,11 +79,13 @@ where
             return;
         }
 
-        let row_len =
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+        let row = &self.lines[self.frame_start_row + usize::from(self.cursor_row)];
 
-        if self.frame_start_col + usize::from(self.cursor_col) + 1 < row_len {
-            self.cursor_col += 1;
+        let c = self.frame_start_col + self.col_char_ix;
+        let cw = row.char_width(c);
+        if c + 1 < row.len() {
+            self.cursor_col += cw;
+            self.col_char_ix += 1;
         }
 
         let text_width = self.width - self.num_column_width() as u16;
@@ -101,7 +114,8 @@ where
                 .frame_start_col
                 .saturating_sub(usize::from(text_width) / 2 + 1);
         } else {
-            self.cursor_col -= 1;
+            self.cursor_col -= &self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+                .char_width(self.frame_start_col + usize::from(self.cursor_col));
         }
 
         self.max_col = self.frame_start_col + usize::from(self.cursor_col);
@@ -156,6 +170,7 @@ where
             return;
         }
 
+        // FIXME: this is broken after char_width handling
         self.max_col =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 
@@ -207,6 +222,7 @@ where
 
         self.cursor_row = r.saturating_sub(self.frame_start_row) as u16;
 
+        // FIXME: this is broken after char_width handling
         let c = c.min(
             self.lines[self.frame_start_row + usize::from(self.cursor_row)]
                 .unstyled_chars_len()
@@ -222,6 +238,8 @@ where
     }
 
     fn fix_cursor_col_after_vertical_move(&mut self) {
+        // FIXME: this is broken after char_width handling
+
         let row_len =
             self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
 

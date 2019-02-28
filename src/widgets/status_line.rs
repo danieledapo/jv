@@ -28,7 +28,7 @@ impl StatusLine {
             cursor_col: 0,
             frame_start_col: 0,
             width,
-            buffer: AsciiLine { l: String::new() },
+            buffer: AsciiLine::new(String::new()).unwrap(),
         }
     }
 

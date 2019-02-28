@@ -154,7 +154,7 @@ impl Line for JsonLine {
         for t in &self.tokens {
             let c = t.unstyled_chars_len();
 
-            if col + c >= start_col {
+            if start_col < col + c {
                 let s = start_col.saturating_sub(col);
                 let w = start_col + width - col;
 

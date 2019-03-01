@@ -9,9 +9,10 @@ use termion::color;
 use termion::cursor;
 use termion::raw::RawTerminal;
 
-// TODO: handle tabs
+#[derive(Debug)]
 pub struct StatusLine {
     frame_start_col: usize,
+    col_char_ix: usize,
 
     // 0-based
     cursor_row: u16,
@@ -28,6 +29,7 @@ impl StatusLine {
             cursor_row,
             cursor_col: 0,
             frame_start_col: 0,
+            col_char_ix: 0,
             width,
             buffer: AsciiLine::new(String::new()).unwrap(),
         }
@@ -47,14 +49,12 @@ impl StatusLine {
             return;
         }
 
-        self.buffer
-            .insert(self.frame_start_col + usize::from(self.cursor_col), c);
+        self.buffer.insert(self.col_char_ix, c);
         self.right();
     }
 
     pub fn remove(&mut self) {
-        self.buffer
-            .remove(self.frame_start_col + usize::from(self.cursor_col) - 1);
+        self.buffer.remove(self.col_char_ix - 1);
         self.left();
     }
 
@@ -62,6 +62,7 @@ impl StatusLine {
         self.buffer.clear();
         self.cursor_col = 0;
         self.frame_start_col = 0;
+        self.col_char_ix = 0;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -69,37 +70,43 @@ impl StatusLine {
     }
 
     pub fn left(&mut self) {
-        if self.cursor_col == 0 {
-            let text_width = self.width;
-
-            if self.frame_start_col != 0 {
-                self.cursor_col = text_width / 2;
-            }
-
-            self.frame_start_col = self
-                .frame_start_col
-                .saturating_sub(usize::from(text_width) / 2 + 1);
-        } else {
-            self.cursor_col -= 1;
+        if self.col_char_ix <= 1 {
+            return;
         }
 
-        if self.frame_start_col == 0 && self.cursor_col == 0 {
-            self.cursor_col = 1;
-        }
+        self.col_char_ix -= 1;
+
+        self.center_horizontally();
     }
 
     pub fn right(&mut self) {
         let row_len = self.buffer.chars_count();
 
-        if self.frame_start_col + usize::from(self.cursor_col) < row_len {
-            self.cursor_col += 1;
+        if self.col_char_ix >= row_len {
+            return;
         }
 
-        let text_width = self.width;
-        if self.cursor_col >= text_width {
-            self.frame_start_col += usize::from(text_width) / 2 + 1;
-            self.cursor_col /= 2;
+        self.col_char_ix += 1;
+
+        self.center_horizontally();
+    }
+
+    fn center_horizontally(&mut self) {
+        self.frame_start_col = self.col_char_ix;
+
+        let mut w = 0;
+        while self.frame_start_col > 0 {
+            let cw = self.buffer.char_width(self.frame_start_col);
+
+            if w + cw >= self.width {
+                break;
+            }
+
+            w += cw;
+            self.frame_start_col -= 1;
         }
+
+        self.cursor_col = w;
     }
 }
 

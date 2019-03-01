@@ -140,11 +140,8 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
 }
 
 impl Line for JsonLine {
-    fn unstyled_chars_len(&self) -> usize {
-        self.tokens
-            .iter()
-            .map(|l| l.unstyled_chars_len())
-            .sum::<usize>()
+    fn chars_count(&self) -> usize {
+        self.tokens.iter().map(|l| l.chars_count()).sum::<usize>()
     }
 
     fn render(&self, start_col: usize, width: usize) -> String {
@@ -152,7 +149,7 @@ impl Line for JsonLine {
         let mut col = 0;
 
         for t in &self.tokens {
-            let c = t.unstyled_chars_len();
+            let c = t.chars_count();
 
             if start_col < col + c {
                 let s = start_col.saturating_sub(col);
@@ -173,7 +170,7 @@ impl Line for JsonLine {
 }
 
 impl Line for JsonToken {
-    fn unstyled_chars_len(&self) -> usize {
+    fn chars_count(&self) -> usize {
         self.text.len()
     }
 

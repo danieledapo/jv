@@ -15,11 +15,11 @@ pub trait Line {
     /// return the empty string.
     fn render(&self, start_col: usize, width: usize) -> String;
 
-    /// Return the length of the visible characters that compose the string.
+    /// Return the number of the visible characters that compose the string.
     /// This function must not take into account the markup that's added into
-    /// the rendered string. As of now, only ASCII characters are supported
-    /// because Unicode is hard to get right.
-    fn unstyled_chars_len(&self) -> usize;
+    /// the rendered string nor the character width. As of now, only ASCII
+    /// characters are supported because Unicode is hard to get right.
+    fn chars_count(&self) -> usize;
 }
 
 /// A read-only view over some lines.
@@ -68,8 +68,7 @@ where
             return;
         }
 
-        let row_len =
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+        let row_len = self.lines[self.frame_start_row + usize::from(self.cursor_row)].chars_count();
 
         if self.frame_start_col + usize::from(self.cursor_col) + 1 < row_len {
             self.cursor_col += 1;
@@ -157,7 +156,7 @@ where
         }
 
         self.max_col =
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+            self.lines[self.frame_start_row + usize::from(self.cursor_row)].chars_count();
 
         self.fix_cursor_col_after_vertical_move();
     }
@@ -209,7 +208,7 @@ where
 
         let c = c.min(
             self.lines[self.frame_start_row + usize::from(self.cursor_row)]
-                .unstyled_chars_len()
+                .chars_count()
                 .saturating_sub(1),
         );
         if c < self.frame_start_col || c >= self.frame_start_col + usize::from(self.width) {
@@ -222,8 +221,7 @@ where
     }
 
     fn fix_cursor_col_after_vertical_move(&mut self) {
-        let row_len =
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)].unstyled_chars_len();
+        let row_len = self.lines[self.frame_start_row + usize::from(self.cursor_row)].chars_count();
 
         let text_width = usize::from(self.width) - self.num_column_width();
         let c = self.max_col.min(row_len.saturating_sub(1));

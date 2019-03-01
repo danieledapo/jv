@@ -46,7 +46,7 @@ where
         }
     }
 
-    fn unstyled_chars_len(&self) -> usize {
+    fn chars_count(&self) -> usize {
         self.len()
     }
 }

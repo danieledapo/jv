@@ -90,7 +90,7 @@ impl StatusLine {
     }
 
     pub fn right(&mut self) {
-        let row_len = self.buffer.unstyled_chars_len();
+        let row_len = self.buffer.chars_count();
 
         if self.frame_start_col + usize::from(self.cursor_col) < row_len {
             self.cursor_col += 1;

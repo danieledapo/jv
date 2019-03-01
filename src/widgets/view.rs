@@ -20,6 +20,9 @@ pub trait Line {
     /// the rendered string nor the character width. As of now, only ASCII
     /// characters are supported because Unicode is hard to get right.
     fn chars_count(&self) -> usize;
+
+    /// Return the number of columns the char at the given positions spans.
+    fn char_width(&self, idx: usize) -> u16;
 }
 
 /// A read-only view over some lines.
@@ -28,11 +31,13 @@ pub struct View<L> {
 
     width: u16,
     height: u16,
+    num_lines_padding: usize,
+
+    line_char_ix: usize,
+    max_line_char_ix: usize,
 
     frame_start_row: usize,
-    frame_start_col: usize,
-    num_lines_padding: usize,
-    max_col: usize,
+    frame_start_char_ix: usize,
 
     // these are 0-based even though the terminal uses 1-based coordinates
     cursor_row: u16,
@@ -54,10 +59,11 @@ where
             num_lines_padding,
             cursor_col: 0,
             cursor_row: 0,
-            frame_start_col: 0,
+            line_char_ix: 0,
+            frame_start_char_ix: 0,
             frame_start_row: 0,
             height: size.1,
-            max_col: 0,
+            max_line_char_ix: 0,
             width: size.0,
         }
     }
@@ -68,19 +74,16 @@ where
             return;
         }
 
-        let row_len = self.lines[self.frame_start_row + usize::from(self.cursor_row)].chars_count();
+        let row = &self.lines[self.frame_start_row + usize::from(self.cursor_row)];
 
-        if self.frame_start_col + usize::from(self.cursor_col) + 1 < row_len {
-            self.cursor_col += 1;
+        if self.line_char_ix + 1 >= row.chars_count() {
+            return;
         }
 
-        let text_width = self.width - self.num_column_width() as u16;
-        if self.cursor_col >= text_width {
-            self.frame_start_col += usize::from(text_width) / 2 + 1;
-            self.cursor_col /= 2;
-        }
+        self.line_char_ix += 1;
+        self.max_line_char_ix = self.line_char_ix;
 
-        self.max_col = self.frame_start_col + usize::from(self.cursor_col);
+        self.center_horizontally();
     }
 
     // Move the cursor one character to the left.
@@ -89,21 +92,14 @@ where
             return;
         }
 
-        if self.cursor_col == 0 {
-            let text_width = self.width - self.num_column_width() as u16;
-
-            if self.frame_start_col != 0 {
-                self.cursor_col = text_width / 2;
-            }
-
-            self.frame_start_col = self
-                .frame_start_col
-                .saturating_sub(usize::from(text_width) / 2 + 1);
-        } else {
-            self.cursor_col -= 1;
+        if self.line_char_ix == 0 {
+            return;
         }
 
-        self.max_col = self.frame_start_col + usize::from(self.cursor_col);
+        self.line_char_ix -= 1;
+        self.max_line_char_ix = self.line_char_ix;
+
+        self.center_horizontally();
     }
 
     // Move the cursor up one row.
@@ -118,7 +114,8 @@ where
             self.cursor_row -= 1;
         }
 
-        self.fix_cursor_col_after_vertical_move();
+        self.cap_line_char_ix();
+        self.center_horizontally();
     }
 
     // Move the cursor down one row.
@@ -136,7 +133,8 @@ where
                 (self.frame_start_row + 1).min(self.lines.len().saturating_sub(1));
         }
 
-        self.fix_cursor_col_after_vertical_move();
+        self.cap_line_char_ix();
+        self.center_horizontally();
     }
 
     /// Move to beginning of current line.
@@ -145,8 +143,10 @@ where
             return;
         }
 
-        self.max_col = 0;
-        self.fix_cursor_col_after_vertical_move();
+        self.max_line_char_ix = 0;
+        self.line_char_ix = 0;
+
+        self.center_horizontally();
     }
 
     /// Move to end of current line.
@@ -155,10 +155,12 @@ where
             return;
         }
 
-        self.max_col =
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)].chars_count();
+        self.line_char_ix = self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+            .chars_count()
+            .saturating_sub(1);
+        self.max_line_char_ix = self.line_char_ix;
 
-        self.fix_cursor_col_after_vertical_move();
+        self.center_horizontally();
     }
 
     /// Move one page up.
@@ -175,7 +177,8 @@ where
                 .saturating_sub(usize::from(self.height));
         }
 
-        self.fix_cursor_col_after_vertical_move();
+        self.cap_line_char_ix();
+        self.center_horizontally();
     }
 
     /// Move one page down.
@@ -190,7 +193,8 @@ where
             self.cursor_row = 0;
         }
 
-        self.fix_cursor_col_after_vertical_move();
+        self.cap_line_char_ix();
+        self.center_horizontally();
     }
 
     /// Goto 0 based row and column.
@@ -211,23 +215,49 @@ where
                 .chars_count()
                 .saturating_sub(1),
         );
-        if c < self.frame_start_col || c >= self.frame_start_col + usize::from(self.width) {
-            self.frame_start_col = c.saturating_sub(usize::from(self.width) / 2 - 1);
-        }
+        self.max_line_char_ix = c;
 
-        self.cursor_col = c.saturating_sub(self.frame_start_col) as u16;
-
-        self.max_col = c;
+        self.cap_line_char_ix();
+        self.center_horizontally();
     }
 
-    fn fix_cursor_col_after_vertical_move(&mut self) {
-        let row_len = self.lines[self.frame_start_row + usize::from(self.cursor_row)].chars_count();
+    fn cap_line_char_ix(&mut self) {
+        self.line_char_ix = self.max_line_char_ix.min(
+            self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+                .chars_count()
+                .saturating_sub(1),
+        );
+    }
 
+    fn center_horizontally(&mut self) {
         let text_width = usize::from(self.width) - self.num_column_width();
-        let c = self.max_col.min(row_len.saturating_sub(1));
 
-        self.frame_start_col = c / text_width * text_width;
-        self.cursor_col = c.saturating_sub(self.frame_start_col) as u16;
+        let row = &self.lines[self.frame_start_row + usize::from(self.cursor_row)];
+        let row_len = row.chars_count();
+
+        let c = self.max_line_char_ix.min(row_len.saturating_sub(1));
+
+        let min_start_char_ix = if c < self.frame_start_char_ix + usize::from(self.width) {
+            self.frame_start_char_ix
+        } else {
+            0
+        };
+
+        self.frame_start_char_ix = c;
+
+        let mut w = 0;
+        while self.frame_start_char_ix > min_start_char_ix {
+            let cw = row.char_width(self.frame_start_char_ix);
+
+            if usize::from(w) + usize::from(cw) >= text_width {
+                break;
+            }
+
+            w += cw;
+            self.frame_start_char_ix -= 1;
+        }
+
+        self.cursor_col = w;
     }
 
     fn num_column_width(&self) -> usize {
@@ -276,7 +306,7 @@ where
                             r + 1,
                             fg,
                             color::Fg(color::Reset),
-                            l.render(self.frame_start_col, text_width),
+                            l.render(self.frame_start_char_ix, text_width),
                             nlp = self.num_lines_padding,
                         )?
                     } else {
@@ -288,7 +318,7 @@ where
                             num_fg,
                             r + 1,
                             color::Fg(color::Reset),
-                            l.render(self.frame_start_col, text_width),
+                            l.render(self.frame_start_char_ix, text_width),
                             nlp = self.num_lines_padding,
                         )?
                     }

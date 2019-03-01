@@ -9,6 +9,7 @@ use termion::color;
 use termion::cursor;
 use termion::raw::RawTerminal;
 
+// TODO: handle tabs
 pub struct StatusLine {
     frame_start_col: usize,
 

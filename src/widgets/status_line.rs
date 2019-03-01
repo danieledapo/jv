@@ -29,12 +29,12 @@ impl StatusLine {
             cursor_col: 0,
             frame_start_col: 0,
             width,
-            buffer: AsciiLine { l: String::new() },
+            buffer: AsciiLine::new(String::new()).unwrap(),
         }
     }
 
     pub fn text(&self) -> &str {
-        &self.buffer.l[1..]
+        &self.buffer.line()[1..]
     }
 
     pub fn activate(&mut self) {
@@ -48,26 +48,24 @@ impl StatusLine {
         }
 
         self.buffer
-            .l
             .insert(self.frame_start_col + usize::from(self.cursor_col), c);
         self.right();
     }
 
     pub fn remove(&mut self) {
         self.buffer
-            .l
             .remove(self.frame_start_col + usize::from(self.cursor_col) - 1);
         self.left();
     }
 
     pub fn clear(&mut self) {
-        self.buffer.l.clear();
+        self.buffer.clear();
         self.cursor_col = 0;
         self.frame_start_col = 0;
     }
 
     pub fn is_empty(&self) -> bool {
-        self.buffer.is_empty()
+        self.buffer.chars_count() == 0
     }
 
     pub fn left(&mut self) {

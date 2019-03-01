@@ -187,7 +187,7 @@ impl Line for JsonLine {
 
 impl Line for JsonToken {
     fn chars_count(&self) -> usize {
-        self.text.len()
+        self.text.chars_count()
     }
 
     fn char_width(&self, idx: usize) -> u16 {

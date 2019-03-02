@@ -23,6 +23,10 @@ pub trait Line {
 
     /// Return the number of columns the char at the given positions spans.
     fn char_width(&self, idx: usize) -> u16;
+
+    /// Indent the line by the given amount of cols, useful for updating tab
+    /// widths.
+    fn indent(&mut self, first_col: usize);
 }
 
 /// A read-only view over some lines.
@@ -54,7 +58,7 @@ where
         let lines = lines.into_iter().collect::<Vec<L>>();
         let num_lines_padding = lines.len().to_string().len();
 
-        View {
+        let mut view = View {
             lines,
             num_lines_padding,
             cursor_col: 0,
@@ -65,7 +69,16 @@ where
             height: size.1,
             max_line_char_ix: 0,
             width: size.0,
+        };
+
+        let text_padding = view.num_column_width();
+        for l in &mut view.lines {
+            l.indent(text_padding);
         }
+
+        view.goto(0, 0);
+
+        view
     }
 
     // Move the cursor one character to the right.
@@ -257,7 +270,7 @@ where
             self.frame_start_char_ix -= 1;
         }
 
-        self.cursor_col = w;
+        self.cursor_col = w + row.char_width(self.frame_start_char_ix) - 1;
     }
 
     fn num_column_width(&self) -> usize {

@@ -160,6 +160,15 @@ impl Line for JsonLine {
         panic!("bug: shouldn't happen")
     }
 
+    fn indent(&mut self, mut first_col: usize) {
+        for t in &mut self.tokens {
+            t.indent(first_col);
+            first_col += (0..t.chars_count())
+                .map(|i| usize::from(t.char_width(i)))
+                .sum::<usize>();
+        }
+    }
+
     fn render(&self, start_col: usize, width: usize) -> String {
         let mut l = String::new();
         let mut col = 0;
@@ -192,6 +201,10 @@ impl Line for JsonToken {
 
     fn char_width(&self, idx: usize) -> u16 {
         self.text.char_width(idx)
+    }
+
+    fn indent(&mut self, width: usize) {
+        self.text.indent(width);
     }
 
     fn render(&self, start_col: usize, width: usize) -> String {

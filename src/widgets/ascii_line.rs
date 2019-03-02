@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::widgets::view::Line;
 
 /// Simple ascii line that can be used to create a simple viewer over ascii
@@ -5,6 +7,7 @@ use crate::widgets::view::Line;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AsciiLine<S> {
     l: S,
+    char_widths: BTreeMap<usize, u8>,
 }
 
 impl<S> AsciiLine<S>
@@ -13,7 +16,10 @@ where
 {
     pub fn new(l: S) -> Option<Self> {
         if l.as_ref().is_ascii() {
-            Some(AsciiLine { l })
+            Some(AsciiLine {
+                l,
+                char_widths: BTreeMap::new(),
+            })
         } else {
             None
         }
@@ -27,6 +33,7 @@ where
 impl AsciiLine<String> {
     pub fn clear(&mut self) {
         self.l.clear();
+        self.char_widths.clear();
     }
 
     pub fn insert(&mut self, ix: usize, c: char) {
@@ -43,16 +50,20 @@ where
     S: AsRef<str>,
 {
     fn render(&self, start_col: usize, width: usize) -> String {
-        // TODO: chop string at width handling variable length characters like
-        // tabs
+        let mut w = 0;
+        let mut rendered = String::new();
 
-        if start_col < self.chars_count() {
-            let row = &self.l.as_ref()[start_col..self.chars_count().min(start_col + width)];
+        for (i, c) in self.l.as_ref().chars().enumerate().skip(start_col) {
+            w += usize::from(self.char_width(i));
 
-            row.to_string()
-        } else {
-            String::new()
+            if w > width {
+                break;
+            }
+
+            rendered.push(c);
         }
+
+        rendered
     }
 
     fn chars_count(&self) -> usize {
@@ -60,8 +71,6 @@ where
     }
 
     fn char_width(&self, idx: usize) -> u16 {
-        // TODO: check if char at idx has a custom width and return it
-
-        1
+        u16::from(*self.char_widths.get(&idx).unwrap_or(&1))
     }
 }

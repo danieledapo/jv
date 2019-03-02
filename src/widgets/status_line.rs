@@ -106,7 +106,7 @@ impl StatusLine {
             self.frame_start_col -= 1;
         }
 
-        self.cursor_col = w;
+        self.cursor_col = w + self.buffer.char_width(self.frame_start_col) - 1;
     }
 }
 

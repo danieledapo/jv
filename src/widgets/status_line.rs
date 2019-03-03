@@ -114,9 +114,10 @@ impl Widget for StatusLine {
     fn render(&self, term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
         write!(
             term,
-            "{}{}{}{}",
+            "{}{}{}{}{}",
             cursor::Goto(1, self.cursor_row + 1),
             color::Bg(color::AnsiValue::grayscale(4)),
+            color::Fg(color::Reset),
             clear::CurrentLine,
             self.buffer
                 .render(self.frame_start_col, usize::from(self.width)),

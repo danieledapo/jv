@@ -1,6 +1,7 @@
 use std::io;
 
 use termion::color;
+use termion::style;
 
 use crate::widgets::ascii_line::AsciiLine;
 use crate::widgets::view::Line;
@@ -30,6 +31,7 @@ enum JsonTokenTag {
     String,
     ObjectKey,
     Whitespace,
+    Ref,
 }
 
 pub fn parse_json(rdr: impl io::Read) -> Option<Vec<JsonLine>> {
@@ -64,11 +66,13 @@ fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLi
             tokens: vec![new_tok(Number, n.to_string())?],
         }),
         Value::String(mut s) => {
+            let tag = if s.starts_with("#/") { Ref } else { String };
+
             s.insert(0, '"');
             s.push('"');
 
             lines.push(JsonLine {
-                tokens: vec![new_tok(String, s)?],
+                tokens: vec![new_tok(tag, s)?],
             });
         }
         Value::Array(arr) => {
@@ -264,6 +268,13 @@ impl Line for JsonToken {
                 "{}{}",
                 color::Fg(color::Yellow),
                 self.text.render(start_col, width)
+            ),
+            JsonTokenTag::Ref => format!(
+                "{}{}{}{}",
+                color::Fg(color::Yellow),
+                style::Underline,
+                self.text.render(start_col, width),
+                style::NoUnderline,
             ),
             JsonTokenTag::ObjectKey => format!(
                 "{}{}",

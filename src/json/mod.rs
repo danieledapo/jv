@@ -6,6 +6,7 @@ use termion::style;
 use crate::widgets::ascii_line::AsciiLine;
 use crate::widgets::view::Line;
 
+pub mod index;
 mod parser;
 
 #[derive(Debug)]
@@ -19,7 +20,7 @@ pub struct JsonToken {
     text: AsciiLine<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JsonTokenTag {
     ObjectStart,
     ObjectEnd,

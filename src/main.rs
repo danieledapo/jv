@@ -16,9 +16,9 @@ use jv::widgets::view::{Line, View};
 use jv::widgets::Widget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Mode {
-    Normal,
-    Input,
+enum Focus {
+    View,
+    StatusLine,
 }
 
 fn main() -> io::Result<()> {
@@ -41,7 +41,7 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
     let mut stdout = io::stdout().into_raw_mode()?;
     let (width, height) = termion::terminal_size()?;
 
-    let mut mode = Mode::Normal;
+    let mut focus = Focus::View;
 
     let mut view = View::new((width, height - 1), lines);
     let mut status_line = StatusLine::new(height - 1, width);
@@ -52,8 +52,8 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
     view.focus(&mut stdout)?;
 
     for ev in io::stdin().keys() {
-        match mode {
-            Mode::Normal => match ev? {
+        match focus {
+            Focus::View => match ev? {
                 Key::Char('q') => break,
                 Key::Right | Key::Char('l') => view.move_right(),
                 Key::Left | Key::Char('h') => view.move_left(),
@@ -64,23 +64,24 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
                 Key::PageUp => view.page_up(),
                 Key::PageDown => view.page_down(),
                 Key::Char(':') => {
+                    focus = Focus::StatusLine;
                     mode = Mode::Input;
                     status_line.activate();
                 }
                 _ => {}
             },
 
-            Mode::Input => match ev? {
+            Focus::StatusLine => match ev? {
                 Key::Esc => {
                     status_line.clear();
-                    mode = Mode::Normal;
+                    focus = Focus::View;
                 }
                 Key::Char('\n') => {
                     if let Some((r, c)) = parse_goto(&status_line.text()) {
                         view.goto(r, c.unwrap_or(0));
 
                         status_line.clear();
-                        mode = Mode::Normal;
+                        focus = Focus::View;
                     }
                 }
                 Key::Char(c) => status_line.insert(c),
@@ -88,7 +89,7 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
                     status_line.remove();
                     if status_line.is_empty() {
                         status_line.clear();
-                        mode = Mode::Normal;
+                        focus = Focus::View;
                     }
                 }
                 Key::Left => status_line.left(),
@@ -100,9 +101,9 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
         status_line.render(&mut stdout)?;
         view.render(&mut stdout)?;
 
-        match mode {
-            Mode::Normal => view.focus(&mut stdout)?,
-            Mode::Input => status_line.focus(&mut stdout)?,
+        match focus {
+            Focus::View => view.focus(&mut stdout)?,
+            Focus::StatusLine => status_line.focus(&mut stdout)?,
         }
     }
 

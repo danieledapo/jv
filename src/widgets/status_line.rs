@@ -9,6 +9,12 @@ use termion::color;
 use termion::cursor;
 use termion::raw::RawTerminal;
 
+#[derive(Debug, Clone, Copy)]
+pub enum StatusLineMode {
+    Query,
+    Command,
+}
+
 #[derive(Debug)]
 pub struct StatusLine {
     frame_start_col: usize,
@@ -21,6 +27,7 @@ pub struct StatusLine {
     width: u16,
 
     buffer: AsciiLine<String>,
+    mode: StatusLineMode,
 }
 
 impl StatusLine {
@@ -30,6 +37,7 @@ impl StatusLine {
             cursor_col: 0,
             frame_start_col: 0,
             col_char_ix: 0,
+            mode: StatusLineMode::Command,
             width,
             buffer: AsciiLine::new(String::new()).unwrap(),
         }
@@ -39,9 +47,18 @@ impl StatusLine {
         &self.buffer.line()[1..]
     }
 
-    pub fn activate(&mut self) {
+    pub fn mode(&self) -> StatusLineMode {
+        self.mode
+    }
+
+    pub fn activate(&mut self, mode: StatusLineMode) {
         self.clear();
-        self.insert(':');
+
+        self.mode = mode;
+        match self.mode {
+            StatusLineMode::Command => self.insert(':'),
+            StatusLineMode::Query => self.insert('#'),
+        }
     }
 
     pub fn insert(&mut self, c: char) {

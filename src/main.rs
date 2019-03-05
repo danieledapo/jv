@@ -9,9 +9,10 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
+use jv::json::index::{index, Index};
 use jv::json::parse_json;
 use jv::widgets::ascii_line::AsciiLine;
-use jv::widgets::status_line::StatusLine;
+use jv::widgets::status_line::{StatusLine, StatusLineMode};
 use jv::widgets::view::{Line, View};
 use jv::widgets::Widget;
 
@@ -26,18 +27,24 @@ fn main() -> io::Result<()> {
     let mut f = fs::File::open(&file_path)?;
 
     if file_path.ends_with("json") {
-        run(parse_json(f).unwrap())?;
+        let lines = parse_json(f).unwrap();
+        let index = index(&lines);
+        // dbg!(&index);
+        run(lines, index)?;
     } else {
         let mut input = String::new();
         f.read_to_string(&mut input)?;
 
-        run(input.lines().map(|l| AsciiLine::new(l).unwrap()))?;
+        run(
+            input.lines().map(|l| AsciiLine::new(l).unwrap()),
+            Index::new(),
+        )?;
     }
 
     Ok(())
 }
 
-fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
+fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> io::Result<()> {
     let mut stdout = io::stdout().into_raw_mode()?;
     let (width, height) = termion::terminal_size()?;
 
@@ -65,8 +72,11 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
                 Key::PageDown => view.page_down(),
                 Key::Char(':') => {
                     focus = Focus::StatusLine;
-                    mode = Mode::Input;
-                    status_line.activate();
+                    status_line.activate(StatusLineMode::Command);
+                }
+                Key::Char('#') => {
+                    focus = Focus::StatusLine;
+                    status_line.activate(StatusLineMode::Query);
                 }
                 _ => {}
             },
@@ -76,14 +86,25 @@ fn run(lines: impl IntoIterator<Item = impl Line>) -> io::Result<()> {
                     status_line.clear();
                     focus = Focus::View;
                 }
-                Key::Char('\n') => {
-                    if let Some((r, c)) = parse_goto(&status_line.text()) {
-                        view.goto(r, c.unwrap_or(0));
+                Key::Char('\n') => match status_line.mode() {
+                    StatusLineMode::Command => {
+                        if let Some((r, c)) = parse_goto(&status_line.text()) {
+                            view.goto(r, c.unwrap_or(0));
 
-                        status_line.clear();
-                        focus = Focus::View;
+                            status_line.clear();
+                            focus = Focus::View;
+                        }
                     }
-                }
+                    StatusLineMode::Query => {
+                        let q = format!("#{}", status_line.text().trim_end_matches('/'));
+                        if let Some((r, c)) = index.get(&q) {
+                            view.goto(*r, *c);
+
+                            status_line.clear();
+                            focus = Focus::View;
+                        }
+                    }
+                },
                 Key::Char(c) => status_line.insert(c),
                 Key::Backspace => {
                     status_line.remove();

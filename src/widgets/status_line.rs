@@ -129,10 +129,27 @@ impl StatusLine {
 
 impl Widget for StatusLine {
     fn render(&self, term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
+        let mode_line = match self.mode {
+            StatusLineMode::Command => AsciiLine::new(" NORMAL ").unwrap(),
+            StatusLineMode::Query => AsciiLine::new(" QUERY ").unwrap(),
+        };
+
+        writeln!(
+            term,
+            "{}{}{}{}{}{}{}{}",
+            cursor::Goto(1, self.cursor_row + 1),
+            color::Bg(color::AnsiValue::grayscale(6)),
+            color::Fg(color::Black),
+            clear::CurrentLine,
+            color::Bg(color::LightBlue),
+            mode_line.render(0, usize::from(self.width)),
+            color::Bg(color::Reset),
+            color::Fg(color::Reset),
+        )?;
         write!(
             term,
             "{}{}{}{}{}",
-            cursor::Goto(1, self.cursor_row + 1),
+            cursor::Goto(1, self.cursor_row + 2),
             color::Bg(color::AnsiValue::grayscale(4)),
             color::Fg(color::Reset),
             clear::CurrentLine,
@@ -147,7 +164,7 @@ impl Widget for StatusLine {
         write!(
             term,
             "{}",
-            cursor::Goto(self.cursor_col + 1, self.cursor_row + 1)
+            cursor::Goto(self.cursor_col + 1, self.cursor_row + 2)
         )?;
         term.flush()
     }

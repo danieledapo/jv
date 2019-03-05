@@ -50,8 +50,8 @@ fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> io::Result<(
 
     let mut focus = Focus::View;
 
-    let mut view = View::new((width, height - 1), lines);
-    let mut status_line = StatusLine::new(height - 1, width);
+    let mut view = View::new((width, height - 2), lines);
+    let mut status_line = StatusLine::new(height - 2, width);
 
     clear(&mut stdout)?;
     status_line.render(&mut stdout)?;

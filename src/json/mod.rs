@@ -1,5 +1,3 @@
-use std::io;
-
 use termion::color;
 use termion::style;
 
@@ -37,9 +35,7 @@ pub enum JsonTokenTag {
     Ref,
 }
 
-pub fn parse_json(rdr: impl io::Read) -> Option<Vec<JsonLine>> {
-    let json = serde_json::from_reader(rdr).ok()?;
-
+pub fn parse_json(json: serde_json::Value) -> Result<Vec<JsonLine>, String> {
     parser::parse_json_lines(json, 0)
 }
 

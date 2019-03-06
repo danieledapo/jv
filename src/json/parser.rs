@@ -3,14 +3,14 @@ use serde_json;
 use crate::json::{JsonLine, JsonToken};
 use crate::widgets::ascii_line::AsciiLine;
 
-pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<JsonLine>> {
+pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<JsonLine>, String> {
     use crate::json::JsonTokenTag::*;
     use serde_json::Value;
 
     let mut lines = vec![];
 
-    let new_tok = |tag, t| {
-        Some(JsonToken {
+    let new_tok = |tag, t| -> Result<JsonToken, std::string::String> {
+        Ok(JsonToken {
             tag,
             text: AsciiLine::new(t)?,
         })
@@ -103,5 +103,5 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Option<Vec<Js
         }
     };
 
-    Some(lines)
+    Ok(lines)
 }

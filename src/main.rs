@@ -22,29 +22,47 @@ enum Focus {
     StatusLine,
 }
 
-fn main() -> io::Result<()> {
-    let file_path = env::args().nth(1).unwrap();
-    let mut f = fs::File::open(&file_path)?;
+type Result<T> = std::result::Result<T, Error>;
 
-    if file_path.ends_with("json") {
-        let lines = parse_json(f).unwrap();
-        let index = index(&lines);
-        // dbg!(&index);
-        run(lines, index)?;
-    } else {
-        let mut input = String::new();
-        f.read_to_string(&mut input)?;
-
-        run(
-            input.lines().map(|l| AsciiLine::new(l).unwrap()),
-            Index::new(),
-        )?;
-    }
-
-    Ok(())
+#[derive(Debug)]
+enum Error {
+    Io(io::Error),
+    NotUnicode(String),
+    Json(serde_json::Error),
 }
 
-fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> io::Result<()> {
+fn main() {
+    fn _main() -> Result<()> {
+        let file_path = env::args().nth(1).unwrap();
+        let mut f = fs::File::open(&file_path)?;
+
+        if file_path.ends_with("json") {
+            let lines = parse_json(serde_json::from_reader(f)?).map_err(Error::NotUnicode)?;
+            let index = index(&lines);
+            // dbg!(&index);
+            run(lines, index)?;
+        } else {
+            let mut input = String::new();
+            f.read_to_string(&mut input)?;
+
+            let lines = input
+                .lines()
+                .map(|l| AsciiLine::new(l).map_err(|e| Error::NotUnicode(e.to_string())))
+                .collect::<Result<Vec<_>>>();
+
+            run(lines?, Index::new())?;
+        }
+
+        Ok(())
+    }
+
+    if let Err(err) = _main() {
+        println!("{}", err);
+        std::process::exit(1);
+    }
+}
+
+fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> Result<()> {
     let mut stdout = io::stdout().into_raw_mode()?;
     let (width, height) = termion::terminal_size()?;
 
@@ -105,8 +123,10 @@ fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> io::Result<(
                                 status_line.clear();
                                 focus = Focus::View;
                             }
-                            None => status_line
-                                .set_error(AsciiLine::new(format!("{} not found", q)).unwrap()),
+                            None => status_line.set_error(
+                                AsciiLine::new(format!("{} not found", q))
+                                    .map_err(Error::NotUnicode)?,
+                            ),
                         }
                     }
                 },
@@ -161,5 +181,27 @@ fn parse_goto(input: &str) -> Option<(usize, Option<usize>)> {
             Some(c) => Some((r, Some(c.saturating_sub(1)))),
             None => None,
         },
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Error {
+        Error::Io(e)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Error {
+        Error::Json(e)
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Io(err) => err.fmt(f),
+            Error::Json(err) => err.fmt(f),
+            Error::NotUnicode(s) => write!(f, "{} is not ascii", s),
+        }
     }
 }

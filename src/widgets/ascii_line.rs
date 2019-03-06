@@ -15,7 +15,9 @@ impl<S> AsciiLine<S>
 where
     S: AsRef<str> + std::fmt::Debug,
 {
-    pub fn new(l: S) -> Option<Self> {
+    /// Create a new AsciiLine from the given string. Returns the raw line on
+    /// error if it contains non ascii characters.
+    pub fn new(l: S) -> Result<Self, S> {
         if l.as_ref().is_ascii() {
             let mut line = AsciiLine {
                 l,
@@ -25,9 +27,9 @@ where
 
             line.indent(0);
 
-            Some(line)
+            Ok(line)
         } else {
-            None
+            Err(l)
         }
     }
 

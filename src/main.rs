@@ -97,11 +97,16 @@ fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> io::Result<(
                     }
                     StatusLineMode::Query => {
                         let q = format!("#{}", status_line.text().trim_end_matches('/'));
-                        if let Some((r, c)) = index.get(&q) {
-                            view.goto(*r, *c);
 
-                            status_line.clear();
-                            focus = Focus::View;
+                        match index.get(&q) {
+                            Some((r, c)) => {
+                                view.goto(*r, *c);
+
+                                status_line.clear();
+                                focus = Focus::View;
+                            }
+                            None => status_line
+                                .set_error(AsciiLine::new(format!("{} not found", q)).unwrap()),
                         }
                     }
                 },
@@ -126,6 +131,8 @@ fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> io::Result<(
             Focus::View => view.focus(&mut stdout)?,
             Focus::StatusLine => status_line.focus(&mut stdout)?,
         }
+
+        status_line.no_error();
     }
 
     clear(&mut stdout)?;

@@ -28,6 +28,8 @@ pub struct StatusLine {
 
     buffer: AsciiLine<String>,
     mode: StatusLineMode,
+
+    error: Option<AsciiLine<String>>,
 }
 
 impl StatusLine {
@@ -39,6 +41,7 @@ impl StatusLine {
             col_char_ix: 0,
             mode: StatusLineMode::Command,
             width,
+            error: None,
             buffer: AsciiLine::new(String::new()).unwrap(),
         }
     }
@@ -80,6 +83,15 @@ impl StatusLine {
         self.cursor_col = 0;
         self.frame_start_col = 0;
         self.col_char_ix = 0;
+        self.error = None;
+    }
+
+    pub fn set_error(&mut self, error: AsciiLine<String>) {
+        self.error = Some(error);
+    }
+
+    pub fn no_error(&mut self) {
+        self.error = None;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -146,16 +158,34 @@ impl Widget for StatusLine {
             color::Bg(color::Reset),
             color::Fg(color::Reset),
         )?;
-        write!(
-            term,
-            "{}{}{}{}{}",
-            cursor::Goto(1, self.cursor_row + 2),
-            color::Bg(color::AnsiValue::grayscale(4)),
-            color::Fg(color::Reset),
-            clear::CurrentLine,
-            self.buffer
-                .render(self.frame_start_col, usize::from(self.width)),
-        )?;
+
+        let goto_line = cursor::Goto(1, self.cursor_row + 2);
+
+        match &self.error {
+            Some(error) => {
+                write!(
+                    term,
+                    "{}{}{}{}{}",
+                    goto_line,
+                    color::Bg(color::LightRed),
+                    color::Fg(color::Reset),
+                    clear::CurrentLine,
+                    error.render(0, usize::from(self.width)),
+                )?;
+            }
+            None => {
+                write!(
+                    term,
+                    "{}{}{}{}{}",
+                    goto_line,
+                    color::Bg(color::AnsiValue::grayscale(4)),
+                    color::Fg(color::Reset),
+                    clear::CurrentLine,
+                    self.buffer
+                        .render(self.frame_start_col, usize::from(self.width)),
+                )?;
+            }
+        }
 
         term.flush()
     }

@@ -16,6 +16,22 @@ use jv::widgets::status_line::{StatusLine, StatusLineMode};
 use jv::widgets::view::{Line, View};
 use jv::widgets::Widget;
 
+struct Ui<L, W, Q>
+where
+    W: io::Write,
+    Q: Fn(&View<L>) -> Option<String>,
+{
+    stdout: RawTerminal<W>,
+
+    view: View<L>,
+    status_line: StatusLine,
+
+    focus: Focus,
+
+    index: Index,
+    get_current_query: Q,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
     View,
@@ -41,7 +57,7 @@ fn main() {
             let index = index(&lines);
             // dbg!(&index);
 
-            run(lines, index, |v| {
+            let mut ui = Ui::new(lines, index, |v| {
                 if let Some(jt) = v.current_line().and_then(|r| r.token_at(v.col())) {
                     if jt.tag() == JsonTokenTag::Ref {
                         let mut q = jt.text().to_string();
@@ -56,6 +72,8 @@ fn main() {
 
                 None
             })?;
+
+            ui.run()?;
         } else {
             let mut input = String::new();
             f.read_to_string(&mut input)?;
@@ -65,7 +83,8 @@ fn main() {
                 .map(|l| AsciiLine::new(l).map_err(|e| Error::NotUnicode(e.to_string())))
                 .collect::<Result<Vec<_>>>();
 
-            run(lines?, Index::new(), |_| None)?;
+            let mut ui = Ui::new(lines?, Index::new(), |_| None)?;
+            ui.run()?;
         }
 
         Ok(())
@@ -77,132 +96,158 @@ fn main() {
     }
 }
 
-fn run<L: Line>(
-    lines: impl IntoIterator<Item = L>,
-    index: Index,
-    mut get_current_query: impl FnMut(&mut View<L>) -> Option<String>,
-) -> Result<()> {
-    let mut stdout = io::stdout().into_raw_mode()?;
-    let (width, height) = termion::terminal_size()?;
+impl<L, Q> Ui<L, io::Stdout, Q>
+where
+    L: Line,
+    Q: Fn(&View<L>) -> Option<String>,
+{
+    fn new(lines: Vec<L>, index: Index, get_current_query: Q) -> Result<Self> {
+        let stdout = io::stdout().into_raw_mode()?;
+        let (width, height) = termion::terminal_size()?;
 
-    let mut focus = Focus::View;
-
-    let mut view = View::new((width, height - 2), lines);
-    let mut status_line = StatusLine::new(height - 2, width);
-
-    clear(&mut stdout)?;
-    status_line.render(&mut stdout)?;
-    view.render(&mut stdout)?;
-    view.focus(&mut stdout)?;
-
-    for ev in io::stdin().keys() {
-        match focus {
-            Focus::View => match ev? {
-                Key::Char('q') => break,
-                Key::Right | Key::Char('l') => view.move_right(),
-                Key::Left | Key::Char('h') => view.move_left(),
-                Key::Up | Key::Char('k') => view.move_up(),
-                Key::Down | Key::Char('j') => view.move_down(),
-                Key::Char('0') => view.move_to_sol(),
-                Key::Char('$') => view.move_to_eol(),
-                Key::PageUp => view.page_up(),
-                Key::PageDown => view.page_down(),
-                Key::Char(':') => {
-                    focus = Focus::StatusLine;
-                    status_line.activate(StatusLineMode::Command);
-                }
-                Key::Char('#') => {
-                    focus = Focus::StatusLine;
-                    status_line.activate(StatusLineMode::Query);
-                }
-                Key::Char('\n') => {
-                    if let Some(q) = get_current_query(&mut view) {
-                        match index.get(&q) {
-                            Some((r, c)) => {
-                                view.goto(*r, *c);
-
-                                status_line.clear();
-                                focus = Focus::View;
-                            }
-                            None => status_line.set_error(
-                                AsciiLine::new(format!("{} not found", q))
-                                    .map_err(Error::NotUnicode)?,
-                            ),
-                        }
-                    }
-                }
-                _ => {}
-            },
-
-            Focus::StatusLine => match ev? {
-                Key::Esc => {
-                    status_line.clear();
-                    focus = Focus::View;
-                }
-                Key::Char('\n') => match status_line.mode() {
-                    StatusLineMode::Command => {
-                        if let Some((r, c)) = parse_goto(&status_line.text()) {
-                            view.goto(r, c.unwrap_or(0));
-
-                            status_line.clear();
-                            focus = Focus::View;
-                        }
-                    }
-                    StatusLineMode::Query => {
-                        let q = format!("#{}", status_line.text().trim_end_matches('/'));
-
-                        match index.get(&q) {
-                            Some((r, c)) => {
-                                view.goto(*r, *c);
-
-                                status_line.clear();
-                                focus = Focus::View;
-                            }
-                            None => status_line.set_error(
-                                AsciiLine::new(format!("{} not found", q))
-                                    .map_err(Error::NotUnicode)?,
-                            ),
-                        }
-                    }
-                },
-                Key::Char(c) => status_line.insert(c),
-                Key::Backspace => {
-                    status_line.remove();
-                    if status_line.is_empty() {
-                        status_line.clear();
-                        focus = Focus::View;
-                    }
-                }
-                Key::Left => status_line.left(),
-                Key::Right => status_line.right(),
-                _ => {}
-            },
-        }
-
-        status_line.render(&mut stdout)?;
-        view.render(&mut stdout)?;
-
-        match focus {
-            Focus::View => view.focus(&mut stdout)?,
-            Focus::StatusLine => status_line.focus(&mut stdout)?,
-        }
-
-        status_line.no_error();
+        Ok(Ui {
+            focus: Focus::View,
+            status_line: StatusLine::new(height - 2, width),
+            view: View::new((width, height - 2), lines),
+            get_current_query,
+            index,
+            stdout,
+        })
     }
-
-    clear(&mut stdout)?;
-
-    Ok(())
 }
 
-fn clear(term: &mut RawTerminal<impl io::Write>) -> io::Result<()> {
-    write!(
-        term,
-        "{}{}{}",
-        color::Fg(color::Reset),
-        color::Bg(color::Reset),
-        clear::All
-    )
+impl<L, W, Q> Ui<L, W, Q>
+where
+    L: Line,
+    W: io::Write,
+    Q: Fn(&View<L>) -> Option<String>,
+{
+    fn clear(&mut self) -> io::Result<()> {
+        write!(
+            self.stdout,
+            "{}{}{}",
+            color::Fg(color::Reset),
+            color::Bg(color::Reset),
+            clear::All
+        )
+    }
+
+    fn run(&mut self) -> Result<()> {
+        self.clear()?;
+
+        self.status_line.render(&mut self.stdout)?;
+        self.view.render(&mut self.stdout)?;
+        self.view.focus(&mut self.stdout)?;
+
+        for ev in io::stdin().keys() {
+            match self.focus {
+                Focus::View => {
+                    let quit = self.update_view(ev?)?;
+                    if quit {
+                        break;
+                    }
+                }
+
+                Focus::StatusLine => self.update_status_line(ev?)?,
+            }
+
+            self.status_line.render(&mut self.stdout)?;
+            self.view.render(&mut self.stdout)?;
+
+            match self.focus {
+                Focus::View => self.view.focus(&mut self.stdout)?,
+                Focus::StatusLine => self.status_line.focus(&mut self.stdout)?,
+            }
+
+            self.status_line.no_error();
+        }
+
+        self.clear()?;
+
+        Ok(())
+    }
+
+    fn update_view(&mut self, ev: Key) -> Result<bool> {
+        match ev {
+            Key::Char('q') => return Ok(true),
+            Key::Right | Key::Char('l') => self.view.move_right(),
+            Key::Left | Key::Char('h') => self.view.move_left(),
+            Key::Up | Key::Char('k') => self.view.move_up(),
+            Key::Down | Key::Char('j') => self.view.move_down(),
+            Key::Char('0') => self.view.move_to_sol(),
+            Key::Char('$') => self.view.move_to_eol(),
+            Key::PageUp => self.view.page_up(),
+            Key::PageDown => self.view.page_down(),
+            Key::Char(':') => {
+                self.focus = Focus::StatusLine;
+                self.status_line.activate(StatusLineMode::Command);
+            }
+            Key::Char('#') => {
+                self.focus = Focus::StatusLine;
+                self.status_line.activate(StatusLineMode::Query);
+            }
+            Key::Char('\n') => {
+                if let Some(q) = (self.get_current_query)(&mut self.view) {
+                    self.goto_ref(&q)?;
+                }
+            }
+            _ => {}
+        }
+
+        Ok(false)
+    }
+
+    fn update_status_line(&mut self, ev: Key) -> Result<()> {
+        match ev {
+            Key::Esc => {
+                self.status_line.clear();
+                self.focus = Focus::View;
+            }
+            Key::Char('\n') => match self.status_line.mode() {
+                StatusLineMode::Command => {
+                    if let Some((r, c)) = parse_goto(&self.status_line.text()) {
+                        self.view.goto(r, c.unwrap_or(0));
+
+                        self.status_line.clear();
+                        self.focus = Focus::View;
+                    }
+                }
+                StatusLineMode::Query => {
+                    let q = format!("#{}", self.status_line.text());
+                    self.goto_ref(&q)?;
+                }
+            },
+            Key::Char(c) => self.status_line.insert(c),
+            Key::Backspace => {
+                self.status_line.remove();
+                if self.status_line.is_empty() {
+                    self.status_line.clear();
+                    self.focus = Focus::View;
+                }
+            }
+            Key::Left => self.status_line.left(),
+            Key::Right => self.status_line.right(),
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    fn goto_ref(&mut self, q: &str) -> Result<()> {
+        match self.index.get(q.trim_end_matches('/')) {
+            Some((r, c)) => {
+                self.view.goto(*r, *c);
+
+                self.status_line.clear();
+                self.focus = Focus::View;
+            }
+            None => self
+                .status_line
+                .set_error(AsciiLine::new(format!("{} not found", q)).map_err(Error::NotUnicode)?),
+        }
+
+        Ok(())
+    }
 }
 
 fn parse_goto(input: &str) -> Option<(usize, Option<usize>)> {

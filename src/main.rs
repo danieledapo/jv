@@ -10,7 +10,7 @@ use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
 use jv::json::index::{index, Index};
-use jv::json::parse_json;
+use jv::json::{parse_json, JsonTokenTag};
 use jv::widgets::ascii_line::AsciiLine;
 use jv::widgets::status_line::{StatusLine, StatusLineMode};
 use jv::widgets::view::{Line, View};
@@ -40,7 +40,22 @@ fn main() {
             let lines = parse_json(serde_json::from_reader(f)?).map_err(Error::NotUnicode)?;
             let index = index(&lines);
             // dbg!(&index);
-            run(lines, index)?;
+
+            run(lines, index, |v| {
+                if let Some(jt) = v.current_line().and_then(|r| r.token_at(v.col())) {
+                    if jt.tag() == JsonTokenTag::Ref {
+                        let mut q = jt.text().to_string();
+
+                        // remove ""
+                        q.pop();
+                        q.remove(0);
+
+                        return Some(q);
+                    }
+                }
+
+                None
+            })?;
         } else {
             let mut input = String::new();
             f.read_to_string(&mut input)?;
@@ -50,7 +65,7 @@ fn main() {
                 .map(|l| AsciiLine::new(l).map_err(|e| Error::NotUnicode(e.to_string())))
                 .collect::<Result<Vec<_>>>();
 
-            run(lines?, Index::new())?;
+            run(lines?, Index::new(), |_| None)?;
         }
 
         Ok(())
@@ -62,7 +77,11 @@ fn main() {
     }
 }
 
-fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> Result<()> {
+fn run<L: Line>(
+    lines: impl IntoIterator<Item = L>,
+    index: Index,
+    mut get_current_query: impl FnMut(&mut View<L>) -> Option<String>,
+) -> Result<()> {
     let mut stdout = io::stdout().into_raw_mode()?;
     let (width, height) = termion::terminal_size()?;
 
@@ -95,6 +114,22 @@ fn run(lines: impl IntoIterator<Item = impl Line>, index: Index) -> Result<()> {
                 Key::Char('#') => {
                     focus = Focus::StatusLine;
                     status_line.activate(StatusLineMode::Query);
+                }
+                Key::Char('\n') => {
+                    if let Some(q) = get_current_query(&mut view) {
+                        match index.get(&q) {
+                            Some((r, c)) => {
+                                view.goto(*r, *c);
+
+                                status_line.clear();
+                                focus = Focus::View;
+                            }
+                            None => status_line.set_error(
+                                AsciiLine::new(format!("{} not found", q))
+                                    .map_err(Error::NotUnicode)?,
+                            ),
+                        }
+                    }
                 }
                 _ => {}
             },

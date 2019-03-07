@@ -81,7 +81,18 @@ where
         view
     }
 
-    // Move the cursor one character to the right.
+    /// Get current line under cursor.
+    pub fn current_line(&self) -> Option<&L> {
+        self.lines
+            .get(self.frame_start_row + usize::from(self.cursor_row))
+    }
+
+    /// Get current column.
+    pub fn col(&self) -> usize {
+        self.frame_start_char_ix + usize::from(self.cursor_col)
+    }
+
+    /// Move the cursor one character to the right.
     pub fn move_right(&mut self) {
         if self.lines.is_empty() {
             return;
@@ -99,7 +110,7 @@ where
         self.center_horizontally();
     }
 
-    // Move the cursor one character to the left.
+    /// Move the cursor one character to the left.
     pub fn move_left(&mut self) {
         if self.lines.is_empty() {
             return;
@@ -115,7 +126,7 @@ where
         self.center_horizontally();
     }
 
-    // Move the cursor up one row.
+    /// Move the cursor up one row.
     pub fn move_up(&mut self) {
         if self.lines.is_empty() {
             return;
@@ -131,7 +142,7 @@ where
         self.center_horizontally();
     }
 
-    // Move the cursor down one row.
+    /// Move the cursor down one row.
     pub fn move_down(&mut self) {
         if self.frame_start_row + usize::from(self.cursor_row) + 1 >= self.lines.len() {
             return;

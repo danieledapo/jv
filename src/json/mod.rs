@@ -39,6 +39,34 @@ pub fn parse_json(json: serde_json::Value) -> Result<Vec<JsonLine>, String> {
     parser::parse_json_lines(json, 0)
 }
 
+impl JsonLine {
+    pub fn token_at(&self, idx: usize) -> Option<&JsonToken> {
+        let mut col = 0;
+
+        for t in &self.tokens {
+            let c = t.chars_count();
+
+            if idx < col + c {
+                return Some(t);
+            }
+
+            col += c;
+        }
+
+        None
+    }
+}
+
+impl JsonToken {
+    pub fn tag(&self) -> JsonTokenTag {
+        self.tag
+    }
+
+    pub fn text(&self) -> &str {
+        self.text.line()
+    }
+}
+
 impl Line for JsonLine {
     fn chars_count(&self) -> usize {
         self.tokens.iter().map(|l| l.chars_count()).sum::<usize>()

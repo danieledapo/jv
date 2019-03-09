@@ -1,7 +1,9 @@
-use std::env;
 use std::fs;
 use std::io;
 use std::io::Read;
+use std::path::PathBuf;
+
+use structopt::StructOpt;
 
 use termion::clear;
 use termion::color;
@@ -15,6 +17,21 @@ use jv::widgets::ascii_line::AsciiLine;
 use jv::widgets::status_line::{StatusLine, StatusLineMode};
 use jv::widgets::view::{Line, View};
 use jv::widgets::Widget;
+
+/// Simple json viewer that allows querying and jumping to json values via
+/// jq-like queries with format "#/<objectkey>/<arrayix>". An example query is
+/// `#/authors/1` or `#/dependencies/react`.
+///
+/// You can write a query by entering query mode with `#` and writing the
+/// desired query. Moreover, if the cursor is under a valid query text then you
+/// can automatically jump to it with `ENTER`. If the input filename doesn't end
+/// with ".json" then it's not treated as such and `jv` will simply work as a
+/// viewer.
+#[derive(Debug, StructOpt)]
+struct Opts {
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+}
 
 struct Ui<L, W, Q>
 where
@@ -49,10 +66,11 @@ enum Error {
 
 fn main() {
     fn _main() -> Result<()> {
-        let file_path = env::args().nth(1).unwrap();
-        let mut f = fs::File::open(&file_path)?;
+        let opts = Opts::from_args();
 
-        if file_path.ends_with("json") {
+        let mut f = fs::File::open(&opts.input)?;
+
+        if opts.input.ends_with("json") {
             let lines = parse_json(serde_json::from_reader(f)?).map_err(Error::NotUnicode)?;
             let index = index(&lines);
             // dbg!(&index);

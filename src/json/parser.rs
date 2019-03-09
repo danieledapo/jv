@@ -38,6 +38,14 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<Js
                 tokens: vec![new_tok(tag, s)?],
             });
         }
+        Value::Array(ref arr) if arr.is_empty() => {
+            lines.push(JsonLine {
+                tokens: vec![
+                    new_tok(ArrayStart, '['.to_string())?,
+                    new_tok(ArrayEnd, ']'.to_string())?,
+                ],
+            });
+        }
         Value::Array(arr) => {
             lines.push(JsonLine {
                 tokens: vec![new_tok(ArrayStart, '['.to_string())?],
@@ -61,6 +69,14 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<Js
 
             lines.push(JsonLine {
                 tokens: vec![new_indent_tok(indent)?, new_tok(ArrayEnd, ']'.to_string())?],
+            });
+        }
+        Value::Object(ref obj) if obj.is_empty() => {
+            lines.push(JsonLine {
+                tokens: vec![
+                    new_tok(ObjectStart, '{'.to_string())?,
+                    new_tok(ObjectEnd, '}'.to_string())?,
+                ],
             });
         }
         Value::Object(obj) => {

@@ -1,54 +1,35 @@
 use serde_json;
 
 use crate::json::{JsonLine, JsonToken};
-use crate::widgets::ascii_line::AsciiLine;
 
 pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<JsonLine>, String> {
-    use crate::json::JsonTokenTag::*;
     use serde_json::Value;
 
     let mut lines = vec![];
 
-    let new_tok = |tag, t| -> Result<JsonToken, std::string::String> {
-        Ok(JsonToken {
-            tag,
-            text: AsciiLine::new(t)?,
-        })
-    };
-
-    let new_indent_tok = |s| new_tok(Whitespace, (0..s).map(|_| ' ').collect());
-
     match json {
         Value::Bool(b) => lines.push(JsonLine {
-            tokens: vec![new_tok(Bool, b.to_string())?],
+            tokens: vec![JsonToken::bool(b)],
         }),
         Value::Null => lines.push(JsonLine {
-            tokens: vec![new_tok(Null, "null".to_string())?],
+            tokens: vec![JsonToken::null()],
         }),
         Value::Number(n) => lines.push(JsonLine {
-            tokens: vec![new_tok(Number, n.to_string())?],
+            tokens: vec![JsonToken::number(n)],
         }),
-        Value::String(mut s) => {
-            let tag = if s.starts_with("#/") { Ref } else { String };
-
-            s.insert(0, '"');
-            s.push('"');
-
+        Value::String(s) => {
             lines.push(JsonLine {
-                tokens: vec![new_tok(tag, s)?],
+                tokens: vec![JsonToken::string(s)?],
             });
         }
         Value::Array(ref arr) if arr.is_empty() => {
             lines.push(JsonLine {
-                tokens: vec![
-                    new_tok(ArrayStart, '['.to_string())?,
-                    new_tok(ArrayEnd, ']'.to_string())?,
-                ],
+                tokens: vec![JsonToken::array_start(), JsonToken::array_end()],
             });
         }
         Value::Array(arr) => {
             lines.push(JsonLine {
-                tokens: vec![new_tok(ArrayStart, '['.to_string())?],
+                tokens: vec![JsonToken::array_start()],
             });
 
             let arr_len = arr.len();
@@ -56,65 +37,47 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<Js
                 let mut children = parse_json_lines(v, indent + 4)?;
 
                 if i < arr_len - 1 {
-                    children
-                        .last_mut()
-                        .unwrap()
-                        .tokens
-                        .push(new_tok(Comma, ','.to_string())?);
+                    children.last_mut().unwrap().tokens.push(JsonToken::comma());
                 }
 
-                children[0].tokens.insert(0, new_indent_tok(indent + 4)?);
+                children[0].tokens.insert(0, JsonToken::ws(indent + 4));
                 lines.extend(children);
             }
 
             lines.push(JsonLine {
-                tokens: vec![new_indent_tok(indent)?, new_tok(ArrayEnd, ']'.to_string())?],
+                tokens: vec![JsonToken::ws(indent), JsonToken::array_end()],
             });
         }
         Value::Object(ref obj) if obj.is_empty() => {
             lines.push(JsonLine {
-                tokens: vec![
-                    new_tok(ObjectStart, '{'.to_string())?,
-                    new_tok(ObjectEnd, '}'.to_string())?,
-                ],
+                tokens: vec![JsonToken::object_start(), JsonToken::object_end()],
             });
         }
         Value::Object(obj) => {
             lines.push(JsonLine {
-                tokens: vec![new_tok(ObjectStart, '{'.to_string())?],
+                tokens: vec![JsonToken::object_start()],
             });
 
             let obj_len = obj.len();
             for (i, (mut k, v)) in obj.into_iter().enumerate() {
                 let mut children = parse_json_lines(v, indent + 4)?;
 
-                children[0].tokens.insert(0, new_indent_tok(1)?);
-                children[0]
-                    .tokens
-                    .insert(0, new_tok(Colon, ":".to_string())?);
+                children[0].tokens.insert(0, JsonToken::ws(1));
+                children[0].tokens.insert(0, JsonToken::colon());
 
-                k.insert(0, '"');
-                k.push('"');
-                children[0].tokens.insert(0, new_tok(ObjectKey, k)?);
+                children[0].tokens.insert(0, JsonToken::object_key(k)?);
 
-                children[0].tokens.insert(0, new_indent_tok(indent + 4)?);
+                children[0].tokens.insert(0, JsonToken::ws(indent + 4));
 
                 if i < obj_len - 1 {
-                    children
-                        .last_mut()
-                        .unwrap()
-                        .tokens
-                        .push(new_tok(Comma, ",".to_string())?);
+                    children.last_mut().unwrap().tokens.push(JsonToken::comma());
                 }
 
                 lines.extend(children);
             }
 
             lines.push(JsonLine {
-                tokens: vec![
-                    new_indent_tok(indent)?,
-                    new_tok(ObjectEnd, '}'.to_string())?,
-                ],
+                tokens: vec![JsonToken::ws(indent), JsonToken::object_end()],
             });
         }
     };

@@ -7,12 +7,12 @@ use crate::widgets::view::Line;
 pub mod index;
 mod parser;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonLine {
     tokens: Vec<JsonToken>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsonToken {
     tag: JsonTokenTag,
     text: AsciiLine<String>,
@@ -40,6 +40,10 @@ pub fn parse_json(json: serde_json::Value) -> Result<Vec<JsonLine>, String> {
 }
 
 impl JsonLine {
+    pub fn new(tokens: Vec<JsonToken>) -> Self {
+        JsonLine { tokens }
+    }
+
     pub fn token_at(&self, idx: usize) -> Option<&JsonToken> {
         let mut col = 0;
 
@@ -58,6 +62,102 @@ impl JsonLine {
 }
 
 impl JsonToken {
+    pub fn ws(s: usize) -> Self {
+        JsonToken {
+            tag: JsonTokenTag::Whitespace,
+            text: AsciiLine::new((0..s).map(|_| ' ').collect()).unwrap(),
+        }
+    }
+
+    pub fn bool(b: bool) -> Self {
+        JsonToken {
+            tag: JsonTokenTag::Bool,
+            text: AsciiLine::new(b.to_string()).unwrap(),
+        }
+    }
+
+    pub fn null() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::Null,
+            text: AsciiLine::new("null".to_string()).unwrap(),
+        }
+    }
+
+    pub fn number(n: serde_json::Number) -> Self {
+        JsonToken {
+            tag: JsonTokenTag::Number,
+            text: AsciiLine::new(n.to_string()).unwrap(),
+        }
+    }
+
+    pub fn string(mut s: String) -> Result<JsonToken, String> {
+        let tag = if s.starts_with("#/") {
+            JsonTokenTag::Ref
+        } else {
+            JsonTokenTag::String
+        };
+
+        s.insert(0, '"');
+        s.push('"');
+
+        Ok(JsonToken {
+            tag,
+            text: AsciiLine::new(s.to_string())?,
+        })
+    }
+
+    pub fn object_key(mut s: String) -> Result<JsonToken, String> {
+        s.insert(0, '"');
+        s.push('"');
+
+        Ok(JsonToken {
+            tag: JsonTokenTag::ObjectKey,
+            text: AsciiLine::new(s.to_string())?,
+        })
+    }
+
+    pub fn array_start() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::ArrayStart,
+            text: AsciiLine::new('['.to_string()).unwrap(),
+        }
+    }
+
+    pub fn array_end() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::ArrayEnd,
+            text: AsciiLine::new(']'.to_string()).unwrap(),
+        }
+    }
+
+    pub fn object_start() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::ObjectStart,
+            text: AsciiLine::new('{'.to_string()).unwrap(),
+        }
+    }
+
+    pub fn object_end() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::ObjectEnd,
+            text: AsciiLine::new('}'.to_string()).unwrap(),
+        }
+    }
+
+    pub fn comma() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::Comma,
+            text: AsciiLine::new(','.to_string()).unwrap(),
+        }
+    }
+
+    pub fn colon() -> Self {
+        JsonToken {
+            tag: JsonTokenTag::Colon,
+            text: AsciiLine::new(':'.to_string()).unwrap(),
+        }
+    }
+
     pub fn tag(&self) -> JsonTokenTag {
         self.tag
     }

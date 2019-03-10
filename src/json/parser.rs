@@ -59,7 +59,13 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<Js
             });
 
             let obj_len = obj.len();
-            for (i, (mut k, v)) in obj.into_iter().enumerate() {
+
+            // this is potentially inefficient for large objects but it's pretty
+            // useful
+            let mut items = obj.into_iter().collect::<Vec<_>>();
+            items.sort_by(|o1, o2| (o1.0).cmp(&o2.0));
+
+            for (i, (k, v)) in items.into_iter().enumerate() {
                 let mut children = parse_json_lines(v, indent + 4)?;
 
                 children[0].tokens.insert(0, JsonToken::ws(1));

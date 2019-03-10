@@ -24,8 +24,9 @@ pub trait Line {
     /// Return the number of columns the char at the given positions spans.
     fn char_width(&self, idx: usize) -> u16;
 
-    /// Indent the line by the given amount of cols, useful for updating tab
-    /// widths.
+    /// "Virtually" indent the line by the given amount of cols. This
+    /// indentation doesn't require the line to put spaces at the beginning, but
+    /// it must update its tabs width.
     fn indent(&mut self, first_col: usize);
 }
 

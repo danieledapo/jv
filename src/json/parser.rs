@@ -44,9 +44,13 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<Js
                 lines.extend(children);
             }
 
-            lines.push(JsonLine {
-                tokens: vec![JsonToken::ws(indent), JsonToken::array_end()],
-            });
+            let mut tokens = vec![];
+            if indent > 0 {
+                tokens.push(JsonToken::ws(indent));
+            }
+            tokens.push(JsonToken::array_end());
+
+            lines.push(JsonLine::new(tokens));
         }
         Value::Object(ref obj) if obj.is_empty() => {
             lines.push(JsonLine {
@@ -82,9 +86,13 @@ pub fn parse_json_lines(json: serde_json::Value, indent: usize) -> Result<Vec<Js
                 lines.extend(children);
             }
 
-            lines.push(JsonLine {
-                tokens: vec![JsonToken::ws(indent), JsonToken::object_end()],
-            });
+            let mut tokens = vec![];
+            if indent > 0 {
+                tokens.push(JsonToken::ws(indent));
+            }
+            tokens.push(JsonToken::object_end());
+
+            lines.push(JsonLine::new(tokens));
         }
     };
 

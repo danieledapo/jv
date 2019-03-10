@@ -70,39 +70,42 @@ fn main() {
 
         let mut f = fs::File::open(&opts.input)?;
 
-        if opts.input.ends_with("json") {
-            let lines = parse_json(serde_json::from_reader(f)?).map_err(Error::NotUnicode)?;
-            let index = index(&lines);
-            // dbg!(&index);
+        match opts.input.extension() {
+            Some(e) if e == "json" => {
+                let lines = parse_json(serde_json::from_reader(f)?).map_err(Error::NotUnicode)?;
+                let index = index(&lines);
+                // dbg!(&index);
 
-            let mut ui = Ui::new(lines, index, |v| {
-                if let Some(jt) = v.current_line().and_then(|r| r.token_at(v.col())) {
-                    if jt.tag() == JsonTokenTag::Ref {
-                        let mut q = jt.text().to_string();
+                let mut ui = Ui::new(lines, index, |v| {
+                    if let Some(jt) = v.current_line().and_then(|r| r.token_at(v.col())) {
+                        if jt.tag() == JsonTokenTag::Ref {
+                            let mut q = jt.text().to_string();
 
-                        // remove ""
-                        q.pop();
-                        q.remove(0);
+                            // remove ""
+                            q.pop();
+                            q.remove(0);
 
-                        return Some(q);
+                            return Some(q);
+                        }
                     }
-                }
 
-                None
-            })?;
+                    None
+                })?;
 
-            ui.run()?;
-        } else {
-            let mut input = String::new();
-            f.read_to_string(&mut input)?;
+                ui.run()?;
+            }
+            _ => {
+                let mut input = String::new();
+                f.read_to_string(&mut input)?;
 
-            let lines = input
-                .lines()
-                .map(|l| AsciiLine::new(l).map_err(|e| Error::NotUnicode(e.to_string())))
-                .collect::<Result<Vec<_>>>();
+                let lines = input
+                    .lines()
+                    .map(|l| AsciiLine::new(l).map_err(|e| Error::NotUnicode(e.to_string())))
+                    .collect::<Result<Vec<_>>>();
 
-            let mut ui = Ui::new(lines?, Index::new(), |_| None)?;
-            ui.run()?;
+                let mut ui = Ui::new(lines?, Index::new(), |_| None)?;
+                ui.run()?;
+            }
         }
 
         Ok(())

@@ -88,9 +88,9 @@ where
             .get(self.frame_start_row + usize::from(self.cursor_row))
     }
 
-    /// Get current column.
+    /// Get index into the character in the line under the cursor.
     pub fn col(&self) -> usize {
-        self.frame_start_char_ix + usize::from(self.cursor_col)
+        self.line_char_ix
     }
 
     /// Move the cursor one character to the right.
@@ -369,4 +369,398 @@ where
 
         term.flush()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::widgets::ascii_line::AsciiLine;
+
+    use super::{Line, View};
+
+    #[test]
+    fn test_basic_movement() {
+        let mut lines = vec![
+            AsciiLine::new("hello world!").unwrap(),
+            AsciiLine::new("").unwrap(),
+            AsciiLine::new("and universe!").unwrap(),
+        ];
+
+        let mut view = View::new((80, 23), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line(), Some(&lines[0]));
+
+        view.move_left();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line(), Some(&lines[0]));
+
+        view.move_up();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line(), Some(&lines[0]));
+
+        view.move_right();
+        assert_eq!(view.col(), 1);
+        assert_eq!(view.current_line(), Some(&lines[0]));
+
+        view.move_left();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line(), Some(&lines[0]));
+
+        view.move_down();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line(), Some(&lines[1]));
+
+        view.move_right();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line(), Some(&lines[1]));
+
+        view.move_down();
+        view.move_right();
+        assert_eq!(view.col(), 1);
+        assert_eq!(view.current_line(), Some(&lines[2]));
+
+        view.move_down();
+        assert_eq!(view.col(), 1);
+        assert_eq!(view.current_line(), Some(&lines[2]));
+    }
+
+    #[test]
+    fn test_basic_horizontal_framing() {
+        let mut lines = vec![AsciiLine::new("hello world!").unwrap()];
+
+        let mut view = View::new((9, 3), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        view.move_right();
+        view.move_right();
+        view.move_right();
+        view.move_right();
+
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.frame_start_char_ix, 0);
+
+        view.move_right();
+        assert_eq!(view.col(), 5);
+        assert_eq!(view.frame_start_char_ix, 1);
+
+        view.move_right();
+        assert_eq!(view.col(), 6);
+        assert_eq!(view.frame_start_char_ix, 2);
+
+        view.move_left();
+        assert_eq!(view.col(), 5);
+        assert_eq!(view.frame_start_char_ix, 2);
+
+        view.move_left();
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.frame_start_char_ix, 2);
+
+        view.move_left();
+        assert_eq!(view.col(), 3);
+        assert_eq!(view.frame_start_char_ix, 2);
+
+        view.move_left();
+        assert_eq!(view.col(), 2);
+        assert_eq!(view.frame_start_char_ix, 2);
+
+        view.move_left();
+        assert_eq!(view.col(), 1);
+        assert_eq!(view.frame_start_char_ix, 1);
+
+        view.move_left();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.frame_start_char_ix, 0);
+    }
+
+    #[test]
+    fn test_basic_vertical_framing() {
+        let mut lines = vec![
+            AsciiLine::new("hello world!").unwrap(),
+            AsciiLine::new("hello!").unwrap(),
+            AsciiLine::new("ciao!").unwrap(),
+            AsciiLine::new("hi!").unwrap(),
+        ];
+
+        let mut view = View::new((80, 2), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.move_down();
+        assert_eq!(view.current_line().unwrap(), &lines[1]);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.move_down();
+        assert_eq!(view.current_line().unwrap(), &lines[2]);
+        assert_eq!(view.frame_start_row, 1);
+
+        view.move_down();
+        assert_eq!(view.current_line().unwrap(), &lines[3]);
+        assert_eq!(view.frame_start_row, 2);
+
+        view.move_up();
+        assert_eq!(view.current_line().unwrap(), &lines[2]);
+        assert_eq!(view.frame_start_row, 2);
+
+        view.move_up();
+        assert_eq!(view.current_line().unwrap(), &lines[1]);
+        assert_eq!(view.frame_start_row, 1);
+
+        view.move_up();
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_row, 0);
+    }
+
+    #[test]
+    fn test_sol() {
+        let mut lines = vec![AsciiLine::new("hello world!").unwrap()];
+        let mut view = View::new((80, 23), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        view.move_right();
+        view.move_right();
+
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.col(), 2);
+
+        view.move_to_sol();
+
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.col(), 0);
+    }
+
+    #[test]
+    fn test_eol() {
+        let mut lines = vec![AsciiLine::new("hello world!").unwrap()];
+        let mut view = View::new((80, 23), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        view.move_right();
+        view.move_right();
+
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.col(), 2);
+
+        view.move_to_eol();
+
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.col(), lines[0].chars_count() - 1);
+    }
+
+    #[test]
+    fn test_paging() {
+        let mut lines = vec![
+            AsciiLine::new("line 1").unwrap(),
+            AsciiLine::new("line 2").unwrap(),
+            AsciiLine::new("line 3").unwrap(),
+            AsciiLine::new("line 4").unwrap(),
+            AsciiLine::new("line 5").unwrap(),
+            AsciiLine::new("line 6").unwrap(),
+        ];
+        let mut view = View::new((80, 3), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.page_down();
+        assert_eq!(view.current_line().unwrap(), &lines[3]);
+        assert_eq!(view.frame_start_row, 3);
+
+        view.page_up();
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.move_down();
+        view.page_up();
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.move_down();
+        view.page_down();
+        assert_eq!(view.current_line().unwrap(), &lines[4]);
+        assert_eq!(view.frame_start_row, 3);
+
+        view.page_down();
+        assert_eq!(view.current_line().unwrap(), &lines[5]);
+        assert_eq!(view.frame_start_row, 5);
+    }
+
+    #[test]
+    fn test_goto() {
+        let mut lines = vec![
+            AsciiLine::new("a very long line").unwrap(),
+            AsciiLine::new("").unwrap(),
+            AsciiLine::new("line 3").unwrap(),
+            AsciiLine::new("line 4").unwrap(),
+            AsciiLine::new("line 5").unwrap(),
+            AsciiLine::new("-------------------------------------------------------").unwrap(),
+            AsciiLine::new("").unwrap(),
+        ];
+        let mut view = View::new((20, 4), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        view.goto(0, 0);
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_char_ix, 0);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.goto(0, 5);
+        assert_eq!(view.col(), 5);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_char_ix, 0);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.goto(1, 0);
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[1]);
+        assert_eq!(view.frame_start_char_ix, 0);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.goto(4, 2);
+        assert_eq!(view.col(), 2);
+        assert_eq!(view.current_line().unwrap(), &lines[4]);
+        assert_eq!(view.frame_start_char_ix, 0);
+        assert_eq!(view.frame_start_row, 3);
+
+        view.goto(0, 0);
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+        assert_eq!(view.frame_start_char_ix, 0);
+        assert_eq!(view.frame_start_row, 0);
+
+        view.goto(5, 40);
+        assert_eq!(view.col(), 40);
+        assert_eq!(view.current_line().unwrap(), &lines[5]);
+        assert_eq!(view.frame_start_char_ix, 25);
+        assert_eq!(view.frame_start_row, 4);
+
+        view.goto(5, 4);
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.current_line().unwrap(), &lines[5]);
+        assert_eq!(view.frame_start_char_ix, 4);
+        assert_eq!(view.frame_start_row, 4);
+    }
+
+    #[test]
+    fn test_remembers_max_col() {
+        let mut lines = vec![
+            AsciiLine::new("a very long line").unwrap(),
+            AsciiLine::new("").unwrap(),
+            AsciiLine::new("line 3").unwrap(),
+            AsciiLine::new("line 4").unwrap(),
+            AsciiLine::new("line 5").unwrap(),
+            AsciiLine::new("-------------------------------------------------------").unwrap(),
+            AsciiLine::new("").unwrap(),
+        ];
+        let mut view = View::new((20, 4), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        view.goto(0, 5);
+        assert_eq!(view.col(), 5);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+
+        view.move_down();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[1]);
+
+        view.move_down();
+        assert_eq!(view.col(), 5);
+        assert_eq!(view.current_line().unwrap(), &lines[2]);
+
+        view.move_left();
+        view.move_down();
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.current_line().unwrap(), &lines[3]);
+
+        view.goto(5, 30);
+        assert_eq!(view.col(), 30);
+        assert_eq!(view.current_line().unwrap(), &lines[5]);
+
+        view.move_down();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[6]);
+
+        view.move_up();
+        assert_eq!(view.col(), 30);
+        assert_eq!(view.current_line().unwrap(), &lines[5]);
+
+        view.page_up();
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[1]);
+
+        view.move_up();
+        assert_eq!(view.col(), 15);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+    }
+
+    #[test]
+    fn test_tab_movement() {
+        let mut lines = vec![
+            AsciiLine::new("line\tfuffa").unwrap(),
+            AsciiLine::new("line 3").unwrap(),
+            AsciiLine::new("line 4").unwrap(),
+        ];
+        let mut view = View::new((80, 23), lines.clone());
+
+        for l in &mut lines {
+            l.indent(4);
+        }
+
+        assert_eq!(view.col(), 0);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+
+        view.move_right();
+        view.move_right();
+        view.move_right();
+        view.move_right();
+
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.cursor_col, 11);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+
+        view.move_left();
+        assert_eq!(view.col(), 3);
+        assert_eq!(view.cursor_col, 3);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+
+        view.move_right();
+        view.move_down();
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.cursor_col, 4);
+        assert_eq!(view.current_line().unwrap(), &lines[1]);
+
+        view.move_up();
+        assert_eq!(view.col(), 4);
+        assert_eq!(view.cursor_col, 11);
+        assert_eq!(view.current_line().unwrap(), &lines[0]);
+    }
+
 }

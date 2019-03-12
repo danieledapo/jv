@@ -227,7 +227,8 @@ where
             Key::Char('\n') => match self.status_line.mode() {
                 StatusLineMode::Command => {
                     if let Some((r, c)) = parse_goto(&self.status_line.text()) {
-                        self.view.goto(r, c.unwrap_or(0));
+                        self.view
+                            .goto(r.unwrap_or(self.view.current_row()), c.unwrap_or(0));
 
                         self.status_line.clear();
                         self.focus = Focus::View;
@@ -271,10 +272,17 @@ where
     }
 }
 
-fn parse_goto(input: &str) -> Option<(usize, Option<usize>)> {
+fn parse_goto(input: &str) -> Option<(Option<usize>, Option<usize>)> {
     let mut parts = input.split(':').fuse();
 
-    let r = parts.next()?.parse::<usize>().ok()?.saturating_sub(1);
+    let r = {
+        let rs = parts.next()?;
+        match rs.parse::<usize>().ok() {
+            Some(d) => Some(d.saturating_sub(1)),
+            None if rs.is_empty() => None,
+            None => return None,
+        }
+    };
 
     match parts.next() {
         None => Some((r, None)),

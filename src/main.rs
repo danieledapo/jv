@@ -228,7 +228,7 @@ where
                 StatusLineMode::Command => {
                     if let Some((r, c)) = parse_goto(&self.status_line.text()) {
                         self.view
-                            .goto(r.unwrap_or(self.view.current_row()), c.unwrap_or(0));
+                            .goto(r.unwrap_or_else(|| self.view.current_row()), c.unwrap_or(0));
 
                         self.status_line.clear();
                         self.focus = Focus::View;
@@ -287,7 +287,13 @@ fn parse_goto(input: &str) -> Option<(Option<usize>, Option<usize>)> {
     match parts.next() {
         None => Some((r, None)),
         Some(cs) => match cs.parse::<usize>().ok() {
-            Some(c) => Some((r, Some(c.saturating_sub(1)))),
+            Some(c) => {
+                if parts.next().is_none() {
+                    Some((r, Some(c.saturating_sub(1))))
+                } else {
+                    None
+                }
+            }
             None => None,
         },
     }
@@ -312,5 +318,25 @@ impl std::fmt::Display for Error {
             Error::Json(err) => err.fmt(f),
             Error::NotUnicode(s) => write!(f, "{} is not ascii", s),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_goto;
+
+    #[test]
+    fn test_parse_goto() {
+        assert_eq!(parse_goto("1:100"), Some((Some(0), Some(99))));
+        assert_eq!(parse_goto("0:50"), Some((Some(0), Some(49))));
+
+        assert_eq!(parse_goto("42"), Some((Some(41), None)));
+        assert_eq!(parse_goto(":42"), Some((None, Some(41))));
+
+        assert_eq!(parse_goto("fuffa:"), None);
+        assert_eq!(parse_goto(":yeyo"), None);
+        assert_eq!(parse_goto("yoyo"), None);
+        assert_eq!(parse_goto("1:yoyo"), None);
+        assert_eq!(parse_goto("1:2:"), None);
     }
 }

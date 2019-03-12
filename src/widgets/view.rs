@@ -84,13 +84,17 @@ where
 
     /// Get current line under cursor.
     pub fn current_line(&self) -> Option<&L> {
-        self.lines
-            .get(self.frame_start_row + usize::from(self.cursor_row))
+        self.lines.get(self.current_row())
     }
 
     /// Get index into the character in the line under the cursor.
     pub fn col(&self) -> usize {
         self.line_char_ix
+    }
+
+    /// Get current row.
+    pub fn current_row(&self) -> usize {
+        self.frame_start_row + usize::from(self.cursor_row)
     }
 
     /// Move the cursor one character to the right.
@@ -99,7 +103,7 @@ where
             return;
         }
 
-        let row = &self.lines[self.frame_start_row + usize::from(self.cursor_row)];
+        let row = &self.lines[self.current_row()];
 
         if self.line_char_ix + 1 >= row.chars_count() {
             return;
@@ -145,7 +149,7 @@ where
 
     /// Move the cursor down one row.
     pub fn move_down(&mut self) {
-        if self.frame_start_row + usize::from(self.cursor_row) + 1 >= self.lines.len() {
+        if self.current_row() + 1 >= self.lines.len() {
             return;
         }
 
@@ -180,7 +184,7 @@ where
             return;
         }
 
-        self.line_char_ix = self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+        self.line_char_ix = self.lines[self.current_row()]
             .chars_count()
             .saturating_sub(1);
         self.max_line_char_ix = self.line_char_ix;
@@ -213,7 +217,7 @@ where
         }
 
         self.frame_start_row += usize::from(self.height);
-        if self.frame_start_row + usize::from(self.cursor_row) >= self.lines.len() {
+        if self.current_row() >= self.lines.len() {
             self.frame_start_row = self.lines.len() - 1;
             self.cursor_row = 0;
         }
@@ -236,7 +240,7 @@ where
         self.cursor_row = r.saturating_sub(self.frame_start_row) as u16;
 
         let c = c.min(
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+            self.lines[self.current_row()]
                 .chars_count()
                 .saturating_sub(1),
         );
@@ -248,7 +252,7 @@ where
 
     fn cap_line_char_ix(&mut self) {
         self.line_char_ix = self.max_line_char_ix.min(
-            self.lines[self.frame_start_row + usize::from(self.cursor_row)]
+            self.lines[self.current_row()]
                 .chars_count()
                 .saturating_sub(1),
         );
@@ -257,7 +261,7 @@ where
     fn center_horizontally(&mut self) {
         let text_width = usize::from(self.width) - self.num_column_width();
 
-        let row = &self.lines[self.frame_start_row + usize::from(self.cursor_row)];
+        let row = &self.lines[self.current_row()];
         let row_len = row.chars_count();
 
         let c = self.max_line_char_ix.min(row_len.saturating_sub(1));

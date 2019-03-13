@@ -228,12 +228,22 @@ where
                         return Ok(true);
                     }
 
-                    if let Some((r, c)) = parse_goto(&self.status_line.text()) {
-                        self.view
-                            .goto(r.unwrap_or_else(|| self.view.current_row()), c.unwrap_or(0));
+                    match parse_goto(&self.status_line.text()) {
+                        None => self.status_line.set_error(
+                            AsciiLine::new(format!(
+                                "invalid goto line and column ref: {} ",
+                                self.status_line.text()
+                            ))
+                            .map_err(Error::NotUnicode)?,
+                        ),
 
-                        self.status_line.clear();
-                        self.focus = Focus::View;
+                        Some((r, c)) => {
+                            self.view
+                                .goto(r.unwrap_or_else(|| self.view.current_row()), c.unwrap_or(0));
+
+                            self.status_line.clear();
+                            self.focus = Focus::View;
+                        }
                     }
                 }
                 StatusLineMode::Query => {

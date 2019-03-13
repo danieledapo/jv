@@ -161,15 +161,13 @@ where
         self.view.focus(&mut self.stdout)?;
 
         for ev in io::stdin().keys() {
-            match self.focus {
-                Focus::View => {
-                    let quit = self.update_view(ev?)?;
-                    if quit {
-                        break;
-                    }
-                }
-
+            let quit = match self.focus {
+                Focus::View => self.update_view(ev?)?,
                 Focus::StatusLine => self.update_status_line(ev?)?,
+            };
+
+            if quit {
+                break;
             }
 
             self.status_line.render(&mut self.stdout)?;
@@ -218,7 +216,7 @@ where
         Ok(false)
     }
 
-    fn update_status_line(&mut self, ev: Key) -> Result<()> {
+    fn update_status_line(&mut self, ev: Key) -> Result<bool> {
         match ev {
             Key::Esc => {
                 self.status_line.clear();
@@ -226,6 +224,10 @@ where
             }
             Key::Char('\n') => match self.status_line.mode() {
                 StatusLineMode::Command => {
+                    if self.status_line.text() == "q" {
+                        return Ok(true);
+                    }
+
                     if let Some((r, c)) = parse_goto(&self.status_line.text()) {
                         self.view
                             .goto(r.unwrap_or_else(|| self.view.current_row()), c.unwrap_or(0));
@@ -252,7 +254,7 @@ where
             _ => {}
         }
 
-        Ok(())
+        Ok(false)
     }
 
     fn goto_ref(&mut self, q: &str) -> Result<()> {

@@ -18,6 +18,41 @@ use jv::widgets::status_line::{StatusLine, StatusLineMode};
 use jv::widgets::view::{Line, View};
 use jv::widgets::Widget;
 
+const HELP_TEXT: &str = r##"
+          ___      __
+         | \ \    / /
+         | |\ \  / /
+     _   | | \ \/ /
+    | |__| |  \  /
+     \____/    \/
+
+
+JV is a simple JSON viewer that supports jq-like queries. Incidentally it works
+also as a basic viewer for plain text files.
+
+# Manual
+
+JV has three "modes": COMMAND, QUERY and HELP. You can enter COMMAND mode with
+":", QUERY with "#" and help with h from COMMAND mode.
+
+To quit JV hit q while focusing the buffer or :q in COMMAND mode.
+
+JV uses vim-like navigation, you can move around with the arrow keys or with J,
+H, K, L. Use 0 and $ to go to the beginning and at the end of the current line
+respectively.
+
+Go to a given line and or column by typing in COMMAND mode the line and column
+number separated by a ":". It's possible to omit either the row or column
+numbers in which case its value won't be changed. Valid examples: "1:20", ":20"
+and "1".
+
+Use a jq-like query to quickly jump to an element of a JSON document. First,
+enter query mode with "#" and then enter object keys or array indices separated
+by "/" . Example queries: "#/", "#/array/23/name", "#/23".
+
+To exit this help page hit q.
+"##;
+
 /// Simple json viewer that allows querying and jumping to json values via
 /// jq-like queries with format "#/<objectkey>/<arrayix>". An example query is
 /// `#/authors/1` or `#/dependencies/react`.
@@ -41,6 +76,7 @@ where
     stdout: RawTerminal<W>,
 
     view: View<L>,
+    help_view: View<HelpLine>,
     status_line: StatusLine,
 
     focus: Focus,
@@ -49,10 +85,44 @@ where
     get_current_query: Q,
 }
 
+#[derive(Debug)]
+struct HelpLine {
+    line: AsciiLine<&'static str>,
+    logo: bool,
+}
+
+impl Line for HelpLine {
+    fn render(&self, start_col: usize, width: usize) -> String {
+        if self.logo {
+            format!(
+                "{}{}{}",
+                color::Fg(color::Yellow),
+                self.line.render(start_col, width),
+                color::Fg(color::Reset)
+            )
+        } else {
+            self.line.render(start_col, width)
+        }
+    }
+
+    fn indent(&mut self, first_col: usize) {
+        self.line.indent(first_col)
+    }
+
+    fn chars_count(&self) -> usize {
+        self.line.chars_count()
+    }
+
+    fn char_width(&self, idx: usize) -> u16 {
+        self.line.char_width(idx)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
     View,
     StatusLine,
+    Help,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -126,6 +196,18 @@ where
         let stdout = io::stdout().into_raw_mode()?;
         let (width, height) = termion::terminal_size()?;
 
+        let help_view = View::new(
+            (width, height),
+            HELP_TEXT
+                .lines()
+                .skip(1)
+                .enumerate()
+                .map(|(i, l)| HelpLine {
+                    line: AsciiLine::new(l).unwrap(),
+                    logo: i < 8,
+                }),
+        );
+
         Ok(Ui {
             focus: Focus::View,
             status_line: StatusLine::new(height - 2, width),
@@ -133,6 +215,7 @@ where
             get_current_query,
             index,
             stdout,
+            help_view,
         })
     }
 }
@@ -164,18 +247,24 @@ where
             let quit = match self.focus {
                 Focus::View => self.update_view(ev?)?,
                 Focus::StatusLine => self.update_status_line(ev?)?,
+                Focus::Help => self.update_help_view(ev?)?,
             };
 
             if quit {
                 break;
             }
 
-            self.status_line.render(&mut self.stdout)?;
-            self.view.render(&mut self.stdout)?;
+            if self.focus == Focus::Help {
+                self.help_view.render(&mut self.stdout)?;
+            } else {
+                self.status_line.render(&mut self.stdout)?;
+                self.view.render(&mut self.stdout)?;
+            }
 
             match self.focus {
                 Focus::View => self.view.focus(&mut self.stdout)?,
                 Focus::StatusLine => self.status_line.focus(&mut self.stdout)?,
+                Focus::Help => self.help_view.focus(&mut self.stdout)?,
             }
 
             self.status_line.no_error();
@@ -228,6 +317,12 @@ where
                         return Ok(true);
                     }
 
+                    if self.status_line.text() == "h" {
+                        self.status_line.clear();
+                        self.focus = Focus::Help;
+                        return Ok(false);
+                    }
+
                     match parse_goto(&self.status_line.text()) {
                         None => self.status_line.set_error(
                             AsciiLine::new(format!(
@@ -261,6 +356,25 @@ where
             }
             Key::Left => self.status_line.left(),
             Key::Right => self.status_line.right(),
+            _ => {}
+        }
+
+        Ok(false)
+    }
+
+    fn update_help_view(&mut self, ev: Key) -> Result<bool> {
+        match ev {
+            Key::Char('q') | Key::Esc => {
+                self.focus = Focus::View;
+            }
+            Key::Right | Key::Char('l') => self.help_view.move_right(),
+            Key::Left | Key::Char('h') => self.help_view.move_left(),
+            Key::Up | Key::Char('k') => self.help_view.move_up(),
+            Key::Down | Key::Char('j') => self.help_view.move_down(),
+            Key::Char('0') => self.help_view.move_to_sol(),
+            Key::Char('$') => self.help_view.move_to_eol(),
+            Key::PageUp => self.help_view.page_up(),
+            Key::PageDown => self.help_view.page_down(),
             _ => {}
         }
 

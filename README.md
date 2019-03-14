@@ -7,7 +7,8 @@ also as a basic viewer for plain text files.
 
 ## Features
 
-- To quit hit <kbd>Q</kbd> and to quit any mode focusing the view hit
+- To see the help page hit <kbd>:h</kbd>
+- To quit hit <kbd>q</kbd> and to quit any mode focusing the view hit
   <kbd>ESC</kbd>.
 - Basic navigation with <kbd>&leftarrow;</kbd>, <kbd>&rightarrow;</kbd>,
   <kbd>&uparrow;</kbd>, <kbd>&downarrow;</kbd>, <kbd>PgUp</kbd>,

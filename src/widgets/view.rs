@@ -611,6 +611,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cyclomatic_complexity)]
     fn test_goto() {
         let mut lines = vec![
             AsciiLine::new("a very long line").unwrap(),

@@ -169,7 +169,7 @@ impl JsonToken {
 
 impl Line for JsonLine {
     fn chars_count(&self) -> usize {
-        self.tokens.iter().map(|l| l.chars_count()).sum::<usize>()
+        self.tokens.iter().map(Line::chars_count).sum::<usize>()
     }
 
     fn char_width(&self, idx: usize) -> u16 {

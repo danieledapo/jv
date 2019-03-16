@@ -30,6 +30,10 @@ pub struct StatusLine {
     mode: StatusLineMode,
 
     error: Option<AsciiLine<String>>,
+
+    // history is per mode
+    history: Vec<Vec<AsciiLine<String>>>,
+    history_t: Option<usize>,
 }
 
 impl StatusLine {
@@ -43,6 +47,8 @@ impl StatusLine {
             width,
             error: None,
             buffer: AsciiLine::new(String::new()).unwrap(),
+            history: vec![vec![], vec![]],
+            history_t: None,
         }
     }
 
@@ -84,6 +90,7 @@ impl StatusLine {
         self.frame_start_col = 0;
         self.col_char_ix = 0;
         self.error = None;
+        self.history_t = None;
     }
 
     pub fn set_error(&mut self, error: AsciiLine<String>) {
@@ -96,6 +103,46 @@ impl StatusLine {
 
     pub fn is_empty(&self) -> bool {
         self.buffer.chars_count() == 0
+    }
+
+    pub fn save_history(&mut self) {
+        self.history[self.mode.id()].push(self.buffer.clone());
+    }
+
+    pub fn history_up(&mut self) {
+        self.history_t = Some(match self.history_t {
+            None => self.history[self.mode.id()].len().saturating_sub(1),
+            Some(0) => return,
+            Some(i) => i - 1,
+        });
+
+        self.copy_buffer_from_history();
+    }
+
+    pub fn history_down(&mut self) {
+        match self.history_t {
+            None => return,
+            Some(i) if i >= self.history[self.mode.id()].len() => return,
+            Some(i) if i + 1 >= self.history[self.mode.id()].len() => {
+                // reset buffer
+                self.activate(self.mode);
+            }
+            Some(i) => {
+                self.history_t = Some(i + 1);
+                self.copy_buffer_from_history();
+            }
+        };
+    }
+
+    fn copy_buffer_from_history(&mut self) {
+        let i = self.history_t.unwrap();
+
+        if let Some(l) = self.history[self.mode.id()].get(i) {
+            self.buffer = l.clone();
+
+            self.col_char_ix = self.buffer.chars_count();
+            self.center_horizontally();
+        }
     }
 
     pub fn left(&mut self) {
@@ -197,5 +244,14 @@ impl Widget for StatusLine {
             cursor::Goto(self.cursor_col + 1, self.cursor_row + 2)
         )?;
         term.flush()
+    }
+}
+
+impl StatusLineMode {
+    fn id(self) -> usize {
+        match self {
+            StatusLineMode::Query => 0,
+            StatusLineMode::Command => 1,
+        }
     }
 }

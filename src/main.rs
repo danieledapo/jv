@@ -311,6 +311,12 @@ where
                 self.status_line.clear();
                 self.focus = Focus::View;
             }
+            Key::Up => {
+                self.status_line.history_up();
+            }
+            Key::Down => {
+                self.status_line.history_down();
+            }
             Key::Char('\n') => match self.status_line.mode() {
                 StatusLineMode::Command => {
                     if self.status_line.text() == "q" {
@@ -336,6 +342,7 @@ where
                             self.view
                                 .goto(r.unwrap_or_else(|| self.view.current_row()), c.unwrap_or(0));
 
+                            self.status_line.save_history();
                             self.status_line.clear();
                             self.focus = Focus::View;
                         }
@@ -386,6 +393,7 @@ where
             Some((r, c)) => {
                 self.view.goto(*r, *c);
 
+                self.status_line.save_history();
                 self.status_line.clear();
                 self.focus = Focus::View;
             }

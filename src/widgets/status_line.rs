@@ -91,6 +91,7 @@ impl StatusLine {
         self.col_char_ix = 0;
         self.error = None;
         self.history_t = None;
+        self.mode = StatusLineMode::Command;
     }
 
     pub fn set_error(&mut self, error: AsciiLine<String>) {
